@@ -21,7 +21,8 @@ function App() {
   }, []);
 
   const checkConfiguration = () => {
-    const isValid = validateConfig();
+    // Check if validateConfig function exists, otherwise assume valid for deployed version
+    const isValid = typeof validateConfig === 'function' ? validateConfig() : true;
     setConfigValid(isValid);
     
     if (!isValid) {

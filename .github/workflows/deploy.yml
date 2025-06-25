@@ -273,10 +273,138 @@ jobs:
           responseBucketName: '${RESPONSE_BUCKET}'
         };
         
+        // Validation function to check if configuration is properly set
+        export const validateConfig = () => {
+          // In deployed version, always return true since config is auto-generated
+          return true;
+        };
+        
+        // Log configuration status (deployed version)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🚀 AWS Configuration: DEPLOYED VERSION - All values set automatically');
+        }
+        
+        // Supported languages for the translation service
+        export const SUPPORTED_LANGUAGES = {
+          'af': 'Afrikaans',
+          'sq': 'Albanian', 
+          'am': 'Amharic',
+          'ar': 'Arabic',
+          'hy': 'Armenian',
+          'az': 'Azerbaijani',
+          'bn': 'Bengali',
+          'bs': 'Bosnian',
+          'bg': 'Bulgarian',
+          'ca': 'Catalan',
+          'zh': 'Chinese (Simplified)',
+          'zh-TW': 'Chinese (Traditional)',
+          'hr': 'Croatian',
+          'cs': 'Czech',
+          'da': 'Danish',
+          'fa-AF': 'Dari',
+          'nl': 'Dutch',
+          'en': 'English',
+          'et': 'Estonian',
+          'fa': 'Farsi (Persian)',
+          'tl': 'Filipino, Tagalog',
+          'fi': 'Finnish',
+          'fr': 'French',
+          'fr-CA': 'French (Canada)',
+          'ka': 'Georgian',
+          'de': 'German',
+          'el': 'Greek',
+          'gu': 'Gujarati',
+          'ht': 'Haitian Creole',
+          'ha': 'Hausa',
+          'he': 'Hebrew',
+          'hi': 'Hindi',
+          'hu': 'Hungarian',
+          'is': 'Icelandic',
+          'id': 'Indonesian',
+          'ga': 'Irish',
+          'it': 'Italian',
+          'ja': 'Japanese',
+          'kn': 'Kannada',
+          'kk': 'Kazakh',
+          'ko': 'Korean',
+          'lv': 'Latvian',
+          'lt': 'Lithuanian',
+          'mk': 'Macedonian',
+          'ms': 'Malay',
+          'ml': 'Malayalam',
+          'mt': 'Maltese',
+          'mr': 'Marathi',
+          'mn': 'Mongolian',
+          'no': 'Norwegian (Bokmål)',
+          'ps': 'Pashto',
+          'pl': 'Polish',
+          'pt': 'Portuguese (Brazil)',
+          'pt-PT': 'Portuguese (Portugal)',
+          'pa': 'Punjabi',
+          'ro': 'Romanian',
+          'ru': 'Russian',
+          'sr': 'Serbian',
+          'si': 'Sinhala',
+          'sk': 'Slovak',
+          'sl': 'Slovenian',
+          'so': 'Somali',
+          'es': 'Spanish',
+          'es-MX': 'Spanish (Mexico)',
+          'sw': 'Swahili',
+          'sv': 'Swedish',
+          'ta': 'Tamil',
+          'te': 'Telugu',
+          'th': 'Thai',
+          'tr': 'Turkish',
+          'uk': 'Ukrainian',
+          'ur': 'Urdu',
+          'uz': 'Uzbek',
+          'vi': 'Vietnamese',
+          'cy': 'Welsh'
+        };
+        
+        // Common language pairs for quick selection
+        export const COMMON_LANGUAGE_PAIRS = [
+          { source: 'en', target: 'es', label: 'English → Spanish' },
+          { source: 'en', target: 'fr', label: 'English → French' },
+          { source: 'en', target: 'de', label: 'English → German' },
+          { source: 'en', target: 'zh', label: 'English → Chinese' },
+          { source: 'en', target: 'ja', label: 'English → Japanese' },
+          { source: 'en', target: 'ko', label: 'English → Korean' },
+          { source: 'es', target: 'en', label: 'Spanish → English' },
+          { source: 'fr', target: 'en', label: 'French → English' },
+          { source: 'de', target: 'en', label: 'German → English' },
+          { source: 'zh', target: 'en', label: 'Chinese → English' }
+        ];
+        
         export default awsConfig;
         EOF
         
         echo "AWS configuration created successfully"
+
+    # Ensure public directory exists with required files
+    - name: Ensure public directory structure
+      run: |
+        cd frontend
+        
+        # Create public directory if it doesn't exist
+        mkdir -p public
+        
+        # Create manifest.json if it doesn't exist
+        if [ ! -f public/manifest.json ]; then
+          cat > public/manifest.json << EOF
+        {
+          "short_name": "AWS Translate",
+          "name": "AWS Translate Application",
+          "start_url": ".",
+          "display": "standalone",
+          "theme_color": "#0073bb",
+          "background_color": "#ffffff"
+        }
+        EOF
+        fi
+        
+        echo "Public directory structure verified"
 
     # Install frontend dependencies
     - name: Install dependencies

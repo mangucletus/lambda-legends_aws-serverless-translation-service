@@ -117,7 +117,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "request_bucket_lifecycle" {
     }
 
     expiration {
-      days = 30 # Delete files after 30 days to save costs
+      days = 30
     }
 
     noncurrent_version_expiration {
@@ -139,12 +139,92 @@ resource "aws_s3_bucket_lifecycle_configuration" "response_bucket_lifecycle" {
     }
 
     expiration {
-      days = 90 # Keep responses longer than requests
+      days = 90
     }
 
     noncurrent_version_expiration {
       noncurrent_days = 7
     }
+  }
+}
+
+# DynamoDB table for storing user information and translation history
+resource "aws_dynamodb_table" "user_data" {
+  name           = "${var.project_name}-user-data"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "user_id"
+  range_key      = "timestamp"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "translation_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "TranslationIndex"
+    hash_key           = "translation_id"
+    projection_type    = "ALL"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "User Data Table"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# DynamoDB table for storing translation metadata
+resource "aws_dynamodb_table" "translation_metadata" {
+  name         = "${var.project_name}-translations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "translation_id"
+
+  attribute {
+    name = "translation_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "UserIndex"
+    hash_key           = "user_id"
+    range_key          = "created_at"
+    projection_type    = "ALL"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "Translation Metadata Table"
+    Environment = var.environment
+    Project     = var.project_name
   }
 }
 
@@ -175,7 +255,7 @@ resource "aws_iam_role" "lambda_role" {
 # IAM policy for Lambda function to access AWS services
 resource "aws_iam_policy" "lambda_policy" {
   name        = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
-  description = "Policy for Lambda function to access S3, Translate, and CloudWatch"
+  description = "Policy for Lambda function to access S3, Translate, DynamoDB, and CloudWatch"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -222,6 +302,23 @@ resource "aws_iam_policy" "lambda_policy" {
           "translate:ListTerminologies"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.user_data.arn,
+          aws_dynamodb_table.translation_metadata.arn,
+          "${aws_dynamodb_table.user_data.arn}/index/*",
+          "${aws_dynamodb_table.translation_metadata.arn}/index/*"
+        ]
       }
     ]
   })
@@ -243,20 +340,23 @@ data "archive_file" "lambda_zip" {
 
 # Lambda function for translation processing
 resource "aws_lambda_function" "translate_function" {
-  filename      = data.archive_file.lambda_zip.output_path
-  function_name = "${var.project_name}-translate-function"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "translate_function.lambda_handler"
-  runtime       = "python3.9"
-  timeout       = 60
-  memory_size   = 256
+  filename         = data.archive_file.lambda_zip.output_path
+  function_name    = "${var.project_name}-translate-function"
+  role            = aws_iam_role.lambda_role.arn
+  handler         = "translate_function.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 60
+  memory_size     = 256
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
-      REQUEST_BUCKET  = aws_s3_bucket.request_bucket.bucket
-      RESPONSE_BUCKET = aws_s3_bucket.response_bucket.bucket
+      REQUEST_BUCKET          = aws_s3_bucket.request_bucket.bucket
+      RESPONSE_BUCKET         = aws_s3_bucket.response_bucket.bucket
+      USER_DATA_TABLE         = aws_dynamodb_table.user_data.name
+      TRANSLATION_TABLE       = aws_dynamodb_table.translation_metadata.name
+      AWS_REGION             = data.aws_region.current.name
     }
   }
 
@@ -311,7 +411,6 @@ resource "aws_lambda_permission" "allow_bucket" {
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 
-  # Password policy
   password_policy {
     minimum_length    = 8
     require_lowercase = true
@@ -320,13 +419,30 @@ resource "aws_cognito_user_pool" "main" {
     require_uppercase = true
   }
 
-  # Auto-verified attributes
   auto_verified_attributes = ["email"]
+  username_attributes      = ["email"]
 
-  # Username configuration
-  username_attributes = ["email"]
+  schema {
+    attribute_data_type = "String"
+    name               = "email"
+    required           = true
+    mutable            = true
+  }
 
-  # Account recovery setting
+  schema {
+    attribute_data_type = "String"
+    name               = "given_name"
+    required           = false
+    mutable            = true
+  }
+
+  schema {
+    attribute_data_type = "String"
+    name               = "family_name"
+    required           = false
+    mutable            = true
+  }
+
   account_recovery_setting {
     recovery_mechanism {
       name     = "verified_email"
@@ -334,9 +450,12 @@ resource "aws_cognito_user_pool" "main" {
     }
   }
 
-  # Email configuration
   email_configuration {
     email_sending_account = "COGNITO_DEFAULT"
+  }
+
+  user_pool_add_ons {
+    advanced_security_mode = "ENFORCED"
   }
 
   tags = {
@@ -351,20 +470,16 @@ resource "aws_cognito_user_pool_client" "main" {
   name         = "${var.project_name}-user-pool-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  # OAuth settings
   explicit_auth_flows = [
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
     "ALLOW_USER_PASSWORD_AUTH"
   ]
 
-  # Token validity
-  access_token_validity  = 24
-  id_token_validity      = 24
-  refresh_token_validity = 30
-
-  # Prevent user existence errors
-  prevent_user_existence_errors = "ENABLED"
+  access_token_validity                = 24
+  id_token_validity                    = 24
+  refresh_token_validity               = 30
+  prevent_user_existence_errors        = "ENABLED"
 }
 
 # API Gateway for Lambda function
@@ -576,7 +691,6 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     max_ttl     = 86400
   }
 
-  # Cache behavior for static assets
   ordered_cache_behavior {
     path_pattern           = "/static/*"
     allowed_methods        = ["GET", "HEAD"]
@@ -615,7 +729,6 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     cloudfront_default_certificate = true
   }
 
-  # Custom error page for SPA routing
   custom_error_response {
     error_code         = 404
     response_code      = 200

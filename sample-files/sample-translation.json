@@ -1,0 +1,52 @@
+{
+  "source_language": "en",
+  "target_language": "es",
+  "texts": [
+    "Hello, world! Welcome to our AWS Translate application.",
+    "This is a sample translation request file.",
+    "You can include multiple text strings to be translated.",
+    "Each string in the 'texts' array will be translated separately.",
+    "The translation service supports over 75 languages.",
+    "Thank you for using our serverless translation service!",
+    "AWS Translate provides fast and accurate machine translation.",
+    "This application is built with React, AWS Lambda, and Amazon S3.",
+    "Upload this file to see how batch translation works.",
+    "The results will be saved to the response bucket automatically."
+  ],
+  "metadata": {
+    "description": "Sample translation request for AWS Translate application",
+    "created_by": "AWS Translate Demo",
+    "creation_date": "2024-06-25",
+    "file_version": "1.0",
+    "notes": [
+      "This is a sample file to demonstrate the translation functionality",
+      "You can modify the source_language, target_language, and texts fields",
+      "Supported language codes are available in the AWS Translate documentation",
+      "Each text string should be under 5000 bytes for optimal performance"
+    ],
+    "examples": {
+      "language_codes": {
+        "english": "en",
+        "spanish": "es", 
+        "french": "fr",
+        "german": "de",
+        "chinese_simplified": "zh",
+        "japanese": "ja",
+        "korean": "ko",
+        "portuguese": "pt",
+        "italian": "it",
+        "russian": "ru",
+        "arabic": "ar",
+        "hindi": "hi"
+      },
+      "common_language_pairs": [
+        "en → es (English to Spanish)",
+        "en → fr (English to French)", 
+        "en → de (English to German)",
+        "en → zh (English to Chinese)",
+        "es → en (Spanish to English)",
+        "fr → en (French to English)"
+      ]
+    }
+  }
+}

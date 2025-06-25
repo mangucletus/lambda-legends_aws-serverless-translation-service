@@ -181,14 +181,14 @@ output "aws_region" {
 output "frontend_config" {
   description = "Configuration object for the React frontend application"
   value = {
-    region                = data.aws_region.current.name
-    userPoolId           = aws_cognito_user_pool.main.id
-    userPoolWebClientId  = aws_cognito_user_pool_client.main.id
-    identityPoolId       = aws_cognito_identity_pool.main.id
-    apiGatewayUrl        = "https://${aws_api_gateway_rest_api.translate_api.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/${var.environment}"
-    requestBucketName    = aws_s3_bucket.request_bucket.bucket
-    responseBucketName   = aws_s3_bucket.response_bucket.bucket
-    cloudfrontUrl        = "https://${aws_cloudfront_distribution.frontend_distribution.domain_name}"
+    region              = data.aws_region.current.name
+    userPoolId          = aws_cognito_user_pool.main.id
+    userPoolWebClientId = aws_cognito_user_pool_client.main.id
+    identityPoolId      = aws_cognito_identity_pool.main.id
+    apiGatewayUrl       = "https://${aws_api_gateway_rest_api.translate_api.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/${var.environment}"
+    requestBucketName   = aws_s3_bucket.request_bucket.bucket
+    responseBucketName  = aws_s3_bucket.response_bucket.bucket
+    cloudfrontUrl       = "https://${aws_cloudfront_distribution.frontend_distribution.domain_name}"
   }
   sensitive = true
 }
@@ -197,9 +197,9 @@ output "frontend_config" {
 output "project_info" {
   description = "Project metadata and information"
   value = {
-    project_name = var.project_name
-    environment  = var.environment
-    terraform_version = "~> 1.0"
+    project_name         = var.project_name
+    environment          = var.environment
+    terraform_version    = "~> 1.0"
     aws_provider_version = "~> 5.0"
     deployment_timestamp = timestamp()
   }
@@ -218,12 +218,12 @@ output "resource_summary" {
       translate_function = aws_lambda_function.translate_function.function_name
     }
     cognito_resources = {
-      user_pool = aws_cognito_user_pool.main.id
+      user_pool     = aws_cognito_user_pool.main.id
       identity_pool = aws_cognito_identity_pool.main.id
     }
     api_gateway = aws_api_gateway_rest_api.translate_api.id
     dynamodb_tables = {
-      user_data_table = aws_dynamodb_table.user_data.name
+      user_data_table            = aws_dynamodb_table.user_data.name
       translation_metadata_table = aws_dynamodb_table.translation_metadata.name
     }
   }

@@ -18,7 +18,7 @@ terraform {
     }
   }
 }
-
+# Configure the backend for Terraform state management
 # Configure the AWS Provider
 provider "aws" {
   region = var.aws_region

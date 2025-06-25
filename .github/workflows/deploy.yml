@@ -180,15 +180,12 @@ jobs:
       run: |
         cd infrastructure
         
-        # Check if IAM policy exists and remove it from state if needed
-        if terraform state show aws_iam_policy.lambda_policy 2>/dev/null; then
-          echo "Removing existing lambda policy from state to allow recreation..."
-          terraform state rm aws_iam_policy.lambda_policy
-          terraform state rm aws_iam_role_policy_attachment.lambda_policy_attachment
-        fi
+        # Check current state
+        echo "Checking current Terraform state..."
+        terraform state list || echo "No state found - fresh deployment"
         
-        # For Cognito, we'll need to remove schema attributes that can't be modified
-        echo "Preparing Cognito User Pool for schema updates..."
+        # Skip resource removal since we're doing a fresh deployment
+        echo "Proceeding with fresh deployment..."
 
     # Apply Terraform configuration
     - name: Terraform Apply

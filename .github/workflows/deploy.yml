@@ -13,8 +13,8 @@ on:
 
 # Environment variables
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-  TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+  AWS_REGION: us-east-1
+  TF_STATE_BUCKET: lambda-legends-terraform-state-bucket-2025
   PROJECT_NAME: aws-translate-app
   ENVIRONMENT: dev
 
@@ -64,17 +64,11 @@ jobs:
           exit 1
         fi
 
-    # Update Terraform backend configuration
-    - name: Update backend configuration
-      run: |
-        sed -i 's/your-terraform-state-bucket-unique-name/${{ env.TF_STATE_BUCKET }}/g' infrastructure/backend.tf
-        sed -i 's/us-east-1/${{ env.AWS_REGION }}/g' infrastructure/backend.tf
-
-    # Initialize Terraform
+    # Initialize Terraform (backend config already in backend.tf)
     - name: Terraform Init
       run: |
         cd infrastructure
-        terraform init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
+        terraform init
 
     # Validate Terraform configuration
     - name: Terraform Validate
@@ -87,6 +81,22 @@ jobs:
       run: |
         cd infrastructure
         terraform fmt -check
+
+    # Clean up any existing resources if needed (for first run)
+    - name: Handle existing resources
+      run: |
+        cd infrastructure
+        
+        # Check if state exists and has resources
+        if terraform state list 2>/dev/null | grep -q "aws_iam_policy.lambda_policy"; then
+          echo "Existing state detected. Refreshing state..."
+          terraform refresh \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -var="project_name=${{ env.PROJECT_NAME }}" \
+            -var="environment=${{ env.ENVIRONMENT }}" || true
+        else
+          echo "No existing state detected or first run."
+        fi
 
     # Create Terraform plan
     - name: Terraform Plan
@@ -159,17 +169,11 @@ jobs:
         terraform_version: ~1.0
         terraform_wrapper: false
 
-    # Update Terraform backend configuration
-    - name: Update backend configuration
-      run: |
-        sed -i 's/your-terraform-state-bucket-unique-name/${{ env.TF_STATE_BUCKET }}/g' infrastructure/backend.tf
-        sed -i 's/us-east-1/${{ env.AWS_REGION }}/g' infrastructure/backend.tf
-
     # Initialize Terraform
     - name: Terraform Init
       run: |
         cd infrastructure
-        terraform init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
+        terraform init
 
     # Apply Terraform configuration
     - name: Terraform Apply

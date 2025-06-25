@@ -150,10 +150,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "response_bucket_lifecycle" {
 
 # DynamoDB table for storing user information and translation history
 resource "aws_dynamodb_table" "user_data" {
-  name         = "${var.project_name}-user-data"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "user_id"
-  range_key    = "timestamp"
+  name           = "${var.project_name}-user-data"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "user_id"
+  range_key      = "timestamp"
 
   attribute {
     name = "user_id"
@@ -171,9 +171,9 @@ resource "aws_dynamodb_table" "user_data" {
   }
 
   global_secondary_index {
-    name            = "TranslationIndex"
-    hash_key        = "translation_id"
-    projection_type = "ALL"
+    name               = "TranslationIndex"
+    hash_key           = "translation_id"
+    projection_type    = "ALL"
   }
 
   ttl {
@@ -210,10 +210,10 @@ resource "aws_dynamodb_table" "translation_metadata" {
   }
 
   global_secondary_index {
-    name            = "UserIndex"
-    hash_key        = "user_id"
-    range_key       = "created_at"
-    projection_type = "ALL"
+    name               = "UserIndex"
+    hash_key           = "user_id"
+    range_key          = "created_at"
+    projection_type    = "ALL"
   }
 
   ttl {
@@ -340,23 +340,23 @@ data "archive_file" "lambda_zip" {
 
 # Lambda function for translation processing
 resource "aws_lambda_function" "translate_function" {
-  filename      = data.archive_file.lambda_zip.output_path
-  function_name = "${var.project_name}-translate-function"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "translate_function.lambda_handler"
-  runtime       = "python3.9"
-  timeout       = 60
-  memory_size   = 256
+  filename         = data.archive_file.lambda_zip.output_path
+  function_name    = "${var.project_name}-translate-function"
+  role            = aws_iam_role.lambda_role.arn
+  handler         = "translate_function.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 60
+  memory_size     = 256
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
-      REQUEST_BUCKET    = aws_s3_bucket.request_bucket.bucket
-      RESPONSE_BUCKET   = aws_s3_bucket.response_bucket.bucket
-      USER_DATA_TABLE   = aws_dynamodb_table.user_data.name
-      TRANSLATION_TABLE = aws_dynamodb_table.translation_metadata.name
-      AWS_REGION        = data.aws_region.current.name
+      REQUEST_BUCKET          = aws_s3_bucket.request_bucket.bucket
+      RESPONSE_BUCKET         = aws_s3_bucket.response_bucket.bucket
+      USER_DATA_TABLE         = aws_dynamodb_table.user_data.name
+      TRANSLATION_TABLE       = aws_dynamodb_table.translation_metadata.name
+      AWS_REGION             = data.aws_region.current.name
     }
   }
 
@@ -424,23 +424,23 @@ resource "aws_cognito_user_pool" "main" {
 
   schema {
     attribute_data_type = "String"
-    name                = "email"
-    required            = true
-    mutable             = true
+    name               = "email"
+    required           = true
+    mutable            = true
   }
 
   schema {
     attribute_data_type = "String"
-    name                = "given_name"
-    required            = false
-    mutable             = true
+    name               = "given_name"
+    required           = false
+    mutable            = true
   }
 
   schema {
     attribute_data_type = "String"
-    name                = "family_name"
-    required            = false
-    mutable             = true
+    name               = "family_name"
+    required           = false
+    mutable            = true
   }
 
   account_recovery_setting {
@@ -455,7 +455,7 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   user_pool_add_ons {
-    advanced_security_mode = "ENFORCED"
+    advanced_security_mode = "OFF"
   }
 
   tags = {
@@ -476,10 +476,10 @@ resource "aws_cognito_user_pool_client" "main" {
     "ALLOW_USER_PASSWORD_AUTH"
   ]
 
-  access_token_validity         = 24
-  id_token_validity             = 24
-  refresh_token_validity        = 30
-  prevent_user_existence_errors = "ENABLED"
+  access_token_validity                = 24
+  id_token_validity                    = 24
+  refresh_token_validity               = 30
+  prevent_user_existence_errors        = "ENABLED"
 }
 
 # API Gateway for Lambda function

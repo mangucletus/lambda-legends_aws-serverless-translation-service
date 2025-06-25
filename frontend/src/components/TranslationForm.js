@@ -42,6 +42,7 @@ const TranslationForm = ({ user }) => {
 
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
       // Prepare translation request
@@ -50,6 +51,8 @@ const TranslationForm = ({ user }) => {
         target_language: targetLanguage,
         texts: textInput.split('\n').filter(line => line.trim())
       };
+
+      console.log('Sending translation request:', translationRequest);
 
       // Call the API Gateway endpoint
       const response = await post({
@@ -63,13 +66,36 @@ const TranslationForm = ({ user }) => {
         }
       });
 
-      setTranslationResults(response.translation_result);
-      setSuccess('Translation completed successfully!');
+      console.log('Received response:', response);
+
+      // Handle different response formats
+      let translationResult;
+      if (response.translation_result) {
+        translationResult = response.translation_result;
+      } else if (response.body) {
+        const parsedBody = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+        translationResult = parsedBody.translation_result;
+      } else if (response.translations) {
+        // Direct translations format
+        translationResult = response;
+      } else {
+        // Assume the whole response is the translation result
+        translationResult = response;
+      }
+
+      if (translationResult) {
+        setTranslationResults(translationResult);
+        setSuccess('Translation completed successfully!');
+      } else {
+        throw new Error('No translation results received from the server');
+      }
+      
       clearMessages();
 
     } catch (error) {
       console.error('Translation error:', error);
       setError(`Translation failed: ${error.message || 'Unknown error'}`);
+      setTranslationResults(null);
       clearMessages();
     } finally {
       setLoading(false);
@@ -133,7 +159,29 @@ const TranslationForm = ({ user }) => {
         }
       });
 
-      setTranslationResults(response.translation_result);
+      console.log('File translation response:', response);
+
+      // Handle different response formats
+      let translationResult;
+      if (response.translation_result) {
+        translationResult = response.translation_result;
+      } else if (response.body) {
+        const parsedBody = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+        translationResult = parsedBody.translation_result;
+      } else if (response.translations) {
+        // Direct translations format
+        translationResult = response;
+      } else {
+        // Assume the whole response is the translation result
+        translationResult = response;
+      }
+
+      if (translationResult) {
+        setTranslationResults(translationResult);
+      } else {
+        console.warn('No translation results in response, but file was uploaded successfully');
+      }
+      
       clearMessages();
 
     } catch (error) {

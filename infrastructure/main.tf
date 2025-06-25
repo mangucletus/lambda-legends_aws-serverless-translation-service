@@ -356,7 +356,7 @@ resource "aws_lambda_function" "translate_function" {
       RESPONSE_BUCKET   = aws_s3_bucket.response_bucket.bucket
       USER_DATA_TABLE   = aws_dynamodb_table.user_data.name
       TRANSLATION_TABLE = aws_dynamodb_table.translation_metadata.name
-      REGION        = data.aws_region.current.name
+      REGION            = data.aws_region.current.name
     }
   }
 

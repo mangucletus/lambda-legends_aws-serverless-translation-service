@@ -175,6 +175,21 @@ jobs:
         cd infrastructure
         terraform init
 
+    # Handle problematic resources
+    - name: Handle resource conflicts
+      run: |
+        cd infrastructure
+        
+        # Check if IAM policy exists and remove it from state if needed
+        if terraform state show aws_iam_policy.lambda_policy 2>/dev/null; then
+          echo "Removing existing lambda policy from state to allow recreation..."
+          terraform state rm aws_iam_policy.lambda_policy
+          terraform state rm aws_iam_role_policy_attachment.lambda_policy_attachment
+        fi
+        
+        # For Cognito, we'll need to remove schema attributes that can't be modified
+        echo "Preparing Cognito User Pool for schema updates..."
+
     # Apply Terraform configuration
     - name: Terraform Apply
       run: |

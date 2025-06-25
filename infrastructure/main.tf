@@ -33,11 +33,6 @@ resource "random_string" "suffix" {
   length  = 8
   special = false
   upper   = false
-
-  keepers = {
-    # Change this value to force new random string
-    version = "v3"
-  }
 }
 
 # S3 Bucket for storing translation requests

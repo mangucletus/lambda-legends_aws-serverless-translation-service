@@ -88,7 +88,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-auth-state={user ? "authenticated" : "unauthenticated"}>
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -129,6 +129,7 @@ function App() {
               
               <Authenticator
                 socialProviders={[]}
+                variation="modal"
                 components={{
                   Header() {
                     return (

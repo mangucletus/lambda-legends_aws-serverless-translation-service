@@ -18,7 +18,7 @@ terraform {
     }
   }
 }
-# Configure the backend for Terraform state management
+
 # Configure the AWS Provider
 provider "aws" {
   region = var.aws_region
@@ -255,7 +255,7 @@ resource "aws_iam_role" "lambda_role" {
 # IAM policy for Lambda function to access AWS services
 resource "aws_iam_policy" "lambda_policy" {
   name        = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
-  description = "Policy for Lambda function to access S3, Translate, DynamoDB, and CloudWatch"
+  description = "Policy for Lambda function to access S3, Translate, and CloudWatch"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -302,7 +302,19 @@ resource "aws_iam_policy" "lambda_policy" {
           "translate:ListTerminologies"
         ]
         Resource = "*"
-      },
+      }
+    ]
+  })
+}
+
+# Separate IAM policy for DynamoDB access
+resource "aws_iam_policy" "lambda_dynamodb_policy" {
+  name        = "${var.project_name}-lambda-dynamodb-policy-${random_string.suffix.result}"
+  description = "Policy for Lambda function to access DynamoDB"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       {
         Effect = "Allow"
         Action = [
@@ -328,6 +340,12 @@ resource "aws_iam_policy" "lambda_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
+}
+
+# Attach DynamoDB policy to Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
 }
 
 # Archive Lambda function code

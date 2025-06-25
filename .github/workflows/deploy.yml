@@ -176,16 +176,50 @@ jobs:
         terraform init
 
     # Handle problematic resources
-    - name: Handle resource conflicts
+    - name: Handle existing resources
       run: |
         cd infrastructure
         
         # Check current state
         echo "Checking current Terraform state..."
-        terraform state list || echo "No state found - fresh deployment"
+        terraform state list || echo "No state found - checking for existing AWS resources"
         
-        # Skip resource removal since we're doing a fresh deployment
-        echo "Proceeding with fresh deployment..."
+        # Check for existing IAM policy and import if found
+        echo "Checking for existing IAM policy..."
+        EXISTING_POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='aws-translate-app-lambda-policy-toqpxguz'].Arn" --output text)
+        if [ ! -z "$EXISTING_POLICY_ARN" ] && [ "$EXISTING_POLICY_ARN" != "None" ]; then
+          echo "Found existing IAM policy: $EXISTING_POLICY_ARN"
+          terraform import aws_iam_policy.lambda_policy "$EXISTING_POLICY_ARN" || echo "Policy already in state"
+        fi
+        
+        # Check for existing IAM role and import if found
+        echo "Checking for existing IAM role..."
+        if aws iam get-role --role-name aws-translate-app-lambda-role-toqpxguz 2>/dev/null; then
+          echo "Found existing IAM role"
+          terraform import aws_iam_role.lambda_role aws-translate-app-lambda-role-toqpxguz || echo "Role already in state"
+        fi
+        
+        # Check for existing Lambda function and import if found
+        echo "Checking for existing Lambda function..."
+        if aws lambda get-function --function-name aws-translate-app-translate-function 2>/dev/null; then
+          echo "Found existing Lambda function"
+          terraform import aws_lambda_function.translate_function aws-translate-app-translate-function || echo "Function already in state"
+        fi
+        
+        # Check for existing S3 buckets and import if found
+        echo "Checking for existing S3 buckets..."
+        for bucket in aws-translate-app-requests-toqpxguz aws-translate-app-responses-toqpxguz aws-translate-app-frontend-toqpxguz; do
+          if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+            echo "Found existing bucket: $bucket"
+            case $bucket in
+              *requests*) terraform import aws_s3_bucket.request_bucket "$bucket" || echo "Bucket already in state" ;;
+              *responses*) terraform import aws_s3_bucket.response_bucket "$bucket" || echo "Bucket already in state" ;;
+              *frontend*) terraform import aws_s3_bucket.frontend_bucket "$bucket" || echo "Bucket already in state" ;;
+            esac
+          fi
+        done
+        
+        echo "Resource import completed"
 
     # Apply Terraform configuration
     - name: Terraform Apply

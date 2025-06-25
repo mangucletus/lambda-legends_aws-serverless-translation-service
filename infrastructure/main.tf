@@ -243,13 +243,13 @@ data "archive_file" "lambda_zip" {
 
 # Lambda function for translation processing
 resource "aws_lambda_function" "translate_function" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "${var.project_name}-translate-function"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "translate_function.lambda_handler"
-  runtime         = "python3.9"
-  timeout         = 60
-  memory_size     = 256
+  filename      = data.archive_file.lambda_zip.output_path
+  function_name = "${var.project_name}-translate-function"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "translate_function.lambda_handler"
+  runtime       = "python3.9"
+  timeout       = 60
+  memory_size   = 256
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
@@ -360,7 +360,7 @@ resource "aws_cognito_user_pool_client" "main" {
 
   # Token validity
   access_token_validity  = 24
-  id_token_validity     = 24
+  id_token_validity      = 24
   refresh_token_validity = 30
 
   # Prevent user existence errors
@@ -418,7 +418,7 @@ resource "aws_api_gateway_integration" "translate_options_integration" {
   resource_id = aws_api_gateway_resource.translate_resource.id
   http_method = aws_api_gateway_method.translate_options.http_method
   type        = "MOCK"
-  
+
   request_templates = {
     "application/json" = "{\"statusCode\": 200}"
   }

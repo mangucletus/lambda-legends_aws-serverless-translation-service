@@ -4,28 +4,25 @@
 import React, { useState, useEffect } from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { getCurrentUser, signOut } from 'aws-amplify/auth';
-import AuthComponent from './components/AuthComponent';
 import TranslationForm from './components/TranslationForm';
-import awsConfig, { validateConfig } from './aws-config';
+import awsConfig, { validateConfig, SUPPORTED_LANGUAGES } from './aws-config';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [configValid, setConfigValid] = useState(false);
   const [error, setError] = useState(null);
-  const [authStep, setAuthStep] = useState('loading'); // 'loading', 'signIn', 'authenticated'
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Check authentication status and configuration on component mount
   useEffect(() => {
-    checkAuthState();
     checkConfiguration();
+    checkAuthState();
   }, []);
 
   const checkConfiguration = () => {
-    // Check if validateConfig function exists, otherwise assume valid for deployed version
     const isValid = typeof validateConfig === 'function' ? validateConfig() : true;
     setConfigValid(isValid);
-    
     if (!isValid) {
       setError('Application configuration is incomplete. Please check AWS configuration.');
     }
@@ -36,11 +33,11 @@ function App() {
       setLoading(true);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
-      setAuthStep('authenticated');
+      setIsAuthenticated(true);
     } catch (error) {
       console.log('No authenticated user found');
       setUser(null);
-      setAuthStep('signIn');
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
@@ -50,26 +47,18 @@ function App() {
     try {
       await signOut();
       setUser(null);
-      setAuthStep('signIn');
+      setIsAuthenticated(false);
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
 
-  // Handle authentication state change from Authenticator
-  const handleAuthStateChange = (authState, authUser) => {
-    if (authState === 'signedIn' && authUser) {
-      setUser(authUser);
-      setAuthStep('authenticated');
-      setLoading(false);
-    } else if (authState === 'signedOut') {
-      setUser(null);
-      setAuthStep('signIn');
-      setLoading(false);
-    }
+  const handleAuthSuccess = (authUser) => {
+    setUser(authUser);
+    setIsAuthenticated(true);
+    setLoading(false);
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="app-loading">
@@ -81,7 +70,6 @@ function App() {
     );
   }
 
-  // Configuration error state
   if (!configValid) {
     return (
       <div className="app-error">
@@ -104,10 +92,9 @@ function App() {
     );
   }
 
-  // If user is not authenticated, show full-screen authentication
-  if (authStep === 'signIn') {
+  if (!isAuthenticated) {
     return (
-      <div className="auth-app">
+      <div className="auth-app-container">
         <div className="auth-background">
           <div className="auth-container">
             <div className="auth-content">
@@ -195,18 +182,11 @@ function App() {
                     }
                   }}
                 >
-                  {({ signOut, user: authenticatedUser }) => {
-                    // Update user state when authenticated
-                    if (authenticatedUser && !user) {
-                      handleAuthStateChange('signedIn', authenticatedUser);
+                  {({ signOut: amplifySignOut, user: authenticatedUser }) => {
+                    if (authenticatedUser && !isAuthenticated) {
+                      handleAuthSuccess(authenticatedUser);
                     }
-                    
-                    return (
-                      <div className="authenticated-loading">
-                        <div className="loading-spinner"></div>
-                        <p>Authentication successful! Loading application...</p>
-                      </div>
-                    );
+                    return null;
                   }}
                 </Authenticator>
               </div>
@@ -238,9 +218,8 @@ function App() {
     );
   }
 
-  // Main application content (authenticated users only)
   return (
-    <div className="app" data-auth-state="authenticated">
+    <div className="app authenticated-app" data-auth-state="authenticated">
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -275,7 +254,7 @@ function App() {
               <h2>🎯 Ready to Translate</h2>
               <p>
                 Upload a JSON file with text to translate, or enter text directly below. 
-                Our serverless translation service supports {Object.keys(awsConfig.SUPPORTED_LANGUAGES || {}).length}+ languages.
+                Our serverless translation service supports {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ languages.
               </p>
             </div>
           </section>
@@ -352,7 +331,7 @@ function App() {
             </div>
           </div>
         </div>
-      </footer>
+      </footer> {/* ✅ FIXED closing tag */}
     </div>
   );
 }

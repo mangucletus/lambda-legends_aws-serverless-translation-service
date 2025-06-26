@@ -442,12 +442,19 @@ jobs:
         
         echo "Public directory structure verified"
 
-    # Install frontend dependencies
-    - name: Install dependencies
+    # Install frontend dependencies (with package-lock.json)
+    - name: Install dependencies (with lockfile)
+      if: steps.check-lockfile.outputs.lockfile_exists == 'true'
       run: |
         cd frontend
-        # Clean install to avoid cache conflicts
         npm ci --prefer-offline --no-audit
+
+    # Install frontend dependencies (without package-lock.json)
+    - name: Install dependencies (without lockfile)
+      if: steps.check-lockfile.outputs.lockfile_exists == 'false'
+      run: |
+        cd frontend
+        npm install --prefer-offline --no-audit
 
     # Build the React application
     - name: Build React app

@@ -237,13 +237,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Setup Node.js
-    - name: Setup Node.js
+    # Check if package-lock.json exists for caching
+    - name: Check package-lock.json
+      id: check-lockfile
+      run: |
+        if [ -f frontend/package-lock.json ]; then
+          echo "lockfile_exists=true" >> $GITHUB_OUTPUT
+          echo "Package-lock.json found"
+        else
+          echo "lockfile_exists=false" >> $GITHUB_OUTPUT
+          echo "Package-lock.json not found - caching will be disabled"
+        fi
+
+    # Setup Node.js with conditional caching
+    - name: Setup Node.js (with cache)
+      if: steps.check-lockfile.outputs.lockfile_exists == 'true'
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
+
+    # Setup Node.js without caching
+    - name: Setup Node.js (without cache)
+      if: steps.check-lockfile.outputs.lockfile_exists == 'false'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
 
     # Configure AWS credentials
     - name: Configure AWS credentials
@@ -426,8 +446,8 @@ jobs:
     - name: Install dependencies
       run: |
         cd frontend
-        rm -f package-lock.json
-        npm install
+        # Clean install to avoid cache conflicts
+        npm ci --prefer-offline --no-audit
 
     # Build the React application
     - name: Build React app

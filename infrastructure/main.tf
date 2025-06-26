@@ -1,5 +1,5 @@
 # infrastructure/main.tf
-# Main Terraform configuration for AWS Translate Application
+# Main Terraform configuration with improved state management
 
 terraform {
   required_version = ">= 1.0"
@@ -28,11 +28,46 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Random suffix for unique resource names
+# Random suffix for unique resource names - use existing if available
 resource "random_string" "suffix" {
   length  = 8
   special = false
   upper   = false
+
+  lifecycle {
+    ignore_changes = [result]
+  }
+}
+
+# Import existing resources if they exist
+import {
+  to = random_string.suffix
+  id = "toqpxguz"
+}
+
+# Data sources to check for existing resources
+data "aws_iam_policy" "existing_lambda_policy" {
+  count = 1
+  name  = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
+
+  lifecycle {
+    postcondition {
+      condition     = can(self.arn)
+      error_message = "Policy does not exist, will be created"
+    }
+  }
+}
+
+data "aws_iam_policy" "existing_lambda_dynamodb_policy" {
+  count = 1
+  name  = "${var.project_name}-lambda-dynamodb-policy-${random_string.suffix.result}"
+
+  lifecycle {
+    postcondition {
+      condition     = can(self.arn)
+      error_message = "DynamoDB policy does not exist, will be created"
+    }
+  }
 }
 
 # S3 Bucket for storing translation requests
@@ -43,6 +78,10 @@ resource "aws_s3_bucket" "request_bucket" {
     Name        = "Translation Requests Bucket"
     Environment = var.environment
     Project     = var.project_name
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -55,6 +94,10 @@ resource "aws_s3_bucket" "response_bucket" {
     Environment = var.environment
     Project     = var.project_name
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # S3 Bucket for hosting the React frontend
@@ -65,6 +108,10 @@ resource "aws_s3_bucket" "frontend_bucket" {
     Name        = "Frontend Hosting Bucket"
     Environment = var.environment
     Project     = var.project_name
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -186,6 +233,10 @@ resource "aws_dynamodb_table" "user_data" {
     Environment = var.environment
     Project     = var.project_name
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # DynamoDB table for storing translation metadata
@@ -226,6 +277,10 @@ resource "aws_dynamodb_table" "translation_metadata" {
     Environment = var.environment
     Project     = var.project_name
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # IAM role for Lambda function
@@ -252,7 +307,7 @@ resource "aws_iam_role" "lambda_role" {
   }
 }
 
-# IAM policy for Lambda function to access AWS services
+# IAM policy for Lambda function to access AWS services (without DynamoDB)
 resource "aws_iam_policy" "lambda_policy" {
   name        = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
   description = "Policy for Lambda function to access S3, Translate, and CloudWatch"
@@ -305,6 +360,10 @@ resource "aws_iam_policy" "lambda_policy" {
       }
     ]
   })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Separate IAM policy for DynamoDB access
@@ -334,6 +393,10 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
       }
     ]
   })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Attach policy to Lambda role
@@ -354,6 +417,18 @@ data "archive_file" "lambda_zip" {
   source_dir  = "${path.module}/../lambda"
   output_path = "${path.module}/../lambda/lambda_deployment.zip"
   excludes    = ["*.pyc", "__pycache__", "*.zip"]
+}
+
+# CloudWatch log group for Lambda function
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  name              = "/aws/lambda/${var.project_name}-translate-function"
+  retention_in_days = 7
+
+  tags = {
+    Name        = "Lambda Log Group"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
 # Lambda function for translation processing
@@ -386,20 +461,18 @@ resource "aws_lambda_function" "translate_function" {
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_policy_attachment,
+    aws_iam_role_policy_attachment.lambda_dynamodb_policy_attachment,
     aws_cloudwatch_log_group.lambda_log_group
   ]
 }
 
-# CloudWatch log group for Lambda function
-resource "aws_cloudwatch_log_group" "lambda_log_group" {
-  name              = "/aws/lambda/${var.project_name}-translate-function"
-  retention_in_days = 7
-
-  tags = {
-    Name        = "Lambda Log Group"
-    Environment = var.environment
-    Project     = var.project_name
-  }
+# Lambda permission to allow S3 to invoke the function
+resource "aws_lambda_permission" "allow_bucket" {
+  statement_id  = "AllowExecutionFromS3Bucket"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.translate_function.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.request_bucket.arn
 }
 
 # S3 bucket notification to trigger Lambda function
@@ -414,15 +487,6 @@ resource "aws_s3_bucket_notification" "request_bucket_notification" {
   }
 
   depends_on = [aws_lambda_permission.allow_bucket]
-}
-
-# Lambda permission to allow S3 to invoke the function
-resource "aws_lambda_permission" "allow_bucket" {
-  statement_id  = "AllowExecutionFromS3Bucket"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.translate_function.function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.request_bucket.arn
 }
 
 # Cognito User Pool for authentication
@@ -479,10 +543,108 @@ resource "aws_cognito_user_pool_client" "main" {
   prevent_user_existence_errors = "ENABLED"
 }
 
+# Cognito Identity Pool
+resource "aws_cognito_identity_pool" "main" {
+  identity_pool_name               = "${var.project_name}-identity-pool"
+  allow_unauthenticated_identities = false
+
+  cognito_identity_providers {
+    client_id     = aws_cognito_user_pool_client.main.id
+    provider_name = aws_cognito_user_pool.main.endpoint
+  }
+
+  tags = {
+    Name        = "Identity Pool"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# IAM role for authenticated users
+resource "aws_iam_role" "authenticated_role" {
+  name = "${var.project_name}-authenticated-role-${random_string.suffix.result}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "cognito-identity.amazonaws.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.main.id
+          }
+          "ForAnyValue:StringLike" = {
+            "cognito-identity.amazonaws.com:amr" = "authenticated"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "Authenticated User Role"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# IAM policy for authenticated users
+resource "aws_iam_policy" "authenticated_policy" {
+  name        = "${var.project_name}-authenticated-policy-${random_string.suffix.result}"
+  description = "Policy for authenticated users"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.request_bucket.arn}/*",
+          "${aws_s3_bucket.response_bucket.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "execute-api:Invoke"
+        ]
+        Resource = "${aws_api_gateway_rest_api.translate_api.execution_arn}/*/*"
+      }
+    ]
+  })
+}
+
+# Attach policy to authenticated role
+resource "aws_iam_role_policy_attachment" "authenticated_policy_attachment" {
+  role       = aws_iam_role.authenticated_role.name
+  policy_arn = aws_iam_policy.authenticated_policy.arn
+}
+
+# Cognito Identity Pool Role Attachment
+resource "aws_cognito_identity_pool_roles_attachment" "main" {
+  identity_pool_id = aws_cognito_identity_pool.main.id
+
+  roles = {
+    "authenticated" = aws_iam_role.authenticated_role.arn
+  }
+}
+
 # API Gateway for Lambda function
 resource "aws_api_gateway_rest_api" "translate_api" {
   name        = "${var.project_name}-translate-api"
   description = "API Gateway for translation service"
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
 
   tags = {
     Name        = "Translation API"
@@ -762,98 +924,4 @@ resource "aws_s3_bucket_policy" "frontend_bucket_policy" {
       }
     ]
   })
-}
-
-# IAM role for authenticated users
-resource "aws_iam_role" "authenticated_role" {
-  name = "${var.project_name}-authenticated-role-${random_string.suffix.result}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "cognito-identity.amazonaws.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.main.id
-          }
-          "ForAnyValue:StringLike" = {
-            "cognito-identity.amazonaws.com:amr" = "authenticated"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "Authenticated User Role"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
-# IAM policy for authenticated users
-resource "aws_iam_policy" "authenticated_policy" {
-  name        = "${var.project_name}-authenticated-policy-${random_string.suffix.result}"
-  description = "Policy for authenticated users"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject"
-        ]
-        Resource = [
-          "${aws_s3_bucket.request_bucket.arn}/*",
-          "${aws_s3_bucket.response_bucket.arn}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "execute-api:Invoke"
-        ]
-        Resource = "${aws_api_gateway_rest_api.translate_api.execution_arn}/*/*"
-      }
-    ]
-  })
-}
-
-# Attach policy to authenticated role
-resource "aws_iam_role_policy_attachment" "authenticated_policy_attachment" {
-  role       = aws_iam_role.authenticated_role.name
-  policy_arn = aws_iam_policy.authenticated_policy.arn
-}
-
-# Cognito Identity Pool
-resource "aws_cognito_identity_pool" "main" {
-  identity_pool_name               = "${var.project_name}-identity-pool"
-  allow_unauthenticated_identities = false
-
-  cognito_identity_providers {
-    client_id     = aws_cognito_user_pool_client.main.id
-    provider_name = aws_cognito_user_pool.main.endpoint
-  }
-
-  tags = {
-    Name        = "Identity Pool"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
-# Cognito Identity Pool Role Attachment
-resource "aws_cognito_identity_pool_roles_attachment" "main" {
-  identity_pool_id = aws_cognito_identity_pool.main.id
-
-  roles = {
-    "authenticated" = aws_iam_role.authenticated_role.arn
-  }
 }

@@ -1,5 +1,5 @@
 # .github/workflows/deploy.yml
-# GitHub Actions workflow for AWS Translate Application deployment
+# GitHub Actions workflow for AWS Translate Application deployment with improved state management
 
 name: Deploy AWS Translate Application
 
@@ -82,21 +82,19 @@ jobs:
         cd infrastructure
         terraform fmt -check
 
-    # Clean up any existing resources if needed (for first run)
-    - name: Handle existing resources
+    # Make state management script executable
+    - name: Make state management script executable
       run: |
         cd infrastructure
-        
-        # Check if state exists and has resources
-        if terraform state list 2>/dev/null | grep -q "aws_iam_policy.lambda_policy"; then
-          echo "Existing state detected. Refreshing state..."
-          terraform refresh \
-            -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="project_name=${{ env.PROJECT_NAME }}" \
-            -var="environment=${{ env.ENVIRONMENT }}" || true
-        else
-          echo "No existing state detected or first run."
-        fi
+        chmod +x manage_terraform_state.sh
+
+    # Manage existing resources and state
+    - name: Manage Terraform State
+      run: |
+        cd infrastructure
+        ./manage_terraform_state.sh
+      env:
+        AWS_REGION: ${{ env.AWS_REGION }}
 
     # Create Terraform plan
     - name: Terraform Plan
@@ -175,51 +173,19 @@ jobs:
         cd infrastructure
         terraform init
 
-    # Handle problematic resources
-    - name: Handle existing resources
+    # Make state management script executable
+    - name: Make state management script executable
       run: |
         cd infrastructure
-        
-        # Check current state
-        echo "Checking current Terraform state..."
-        terraform state list || echo "No state found - checking for existing AWS resources"
-        
-        # Check for existing IAM policy and import if found
-        echo "Checking for existing IAM policy..."
-        EXISTING_POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='aws-translate-app-lambda-policy-toqpxguz'].Arn" --output text)
-        if [ ! -z "$EXISTING_POLICY_ARN" ] && [ "$EXISTING_POLICY_ARN" != "None" ]; then
-          echo "Found existing IAM policy: $EXISTING_POLICY_ARN"
-          terraform import aws_iam_policy.lambda_policy "$EXISTING_POLICY_ARN" || echo "Policy already in state"
-        fi
-        
-        # Check for existing IAM role and import if found
-        echo "Checking for existing IAM role..."
-        if aws iam get-role --role-name aws-translate-app-lambda-role-toqpxguz 2>/dev/null; then
-          echo "Found existing IAM role"
-          terraform import aws_iam_role.lambda_role aws-translate-app-lambda-role-toqpxguz || echo "Role already in state"
-        fi
-        
-        # Check for existing Lambda function and import if found
-        echo "Checking for existing Lambda function..."
-        if aws lambda get-function --function-name aws-translate-app-translate-function 2>/dev/null; then
-          echo "Found existing Lambda function"
-          terraform import aws_lambda_function.translate_function aws-translate-app-translate-function || echo "Function already in state"
-        fi
-        
-        # Check for existing S3 buckets and import if found
-        echo "Checking for existing S3 buckets..."
-        for bucket in aws-translate-app-requests-toqpxguz aws-translate-app-responses-toqpxguz aws-translate-app-frontend-toqpxguz; do
-          if aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
-            echo "Found existing bucket: $bucket"
-            case $bucket in
-              *requests*) terraform import aws_s3_bucket.request_bucket "$bucket" || echo "Bucket already in state" ;;
-              *responses*) terraform import aws_s3_bucket.response_bucket "$bucket" || echo "Bucket already in state" ;;
-              *frontend*) terraform import aws_s3_bucket.frontend_bucket "$bucket" || echo "Bucket already in state" ;;
-            esac
-          fi
-        done
-        
-        echo "Resource import completed"
+        chmod +x manage_terraform_state.sh
+
+    # Manage existing resources and state before apply
+    - name: Manage Terraform State Before Apply
+      run: |
+        cd infrastructure
+        ./manage_terraform_state.sh
+      env:
+        AWS_REGION: ${{ env.AWS_REGION }}
 
     # Apply Terraform configuration
     - name: Terraform Apply

@@ -1,5 +1,5 @@
 // frontend/src/App.js
-// Main React application component
+// Main React application component with improved authentication UI
 
 import React, { useState, useEffect } from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
@@ -13,6 +13,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [configValid, setConfigValid] = useState(false);
   const [error, setError] = useState(null);
+  const [authStep, setAuthStep] = useState('loading'); // 'loading', 'signIn', 'authenticated'
 
   // Check authentication status and configuration on component mount
   useEffect(() => {
@@ -35,9 +36,11 @@ function App() {
       setLoading(true);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
+      setAuthStep('authenticated');
     } catch (error) {
       console.log('No authenticated user found');
       setUser(null);
+      setAuthStep('signIn');
     } finally {
       setLoading(false);
     }
@@ -47,8 +50,22 @@ function App() {
     try {
       await signOut();
       setUser(null);
+      setAuthStep('signIn');
     } catch (error) {
       console.error('Error signing out:', error);
+    }
+  };
+
+  // Handle authentication state change from Authenticator
+  const handleAuthStateChange = (authState, authUser) => {
+    if (authState === 'signedIn' && authUser) {
+      setUser(authUser);
+      setAuthStep('authenticated');
+      setLoading(false);
+    } else if (authState === 'signedOut') {
+      setUser(null);
+      setAuthStep('signIn');
+      setLoading(false);
     }
   };
 
@@ -87,8 +104,143 @@ function App() {
     );
   }
 
+  // If user is not authenticated, show full-screen authentication
+  if (authStep === 'signIn') {
+    return (
+      <div className="auth-app">
+        <div className="auth-background">
+          <div className="auth-container">
+            <div className="auth-content">
+              <div className="auth-header">
+                <div className="auth-logo">
+                  <h1>🌍 AWS Translate</h1>
+                  <p>Translate text between multiple languages using AWS services</p>
+                </div>
+              </div>
+              
+              <div className="auth-form-container">
+                <Authenticator
+                  socialProviders={[]}
+                  variation="default"
+                  hideSignUp={false}
+                  components={{
+                    Header() {
+                      return (
+                        <div className="authenticator-header">
+                          <h3>🔐 Secure Authentication</h3>
+                          <p>Sign in to start translating</p>
+                        </div>
+                      );
+                    },
+                    Footer() {
+                      return (
+                        <div className="authenticator-footer">
+                          <p>Powered by AWS Cognito</p>
+                        </div>
+                      );
+                    },
+                    SignIn: {
+                      Header() {
+                        return (
+                          <div className="sign-in-header">
+                            <h3>Welcome Back</h3>
+                            <p>Sign in to your account</p>
+                          </div>
+                        );
+                      }
+                    },
+                    SignUp: {
+                      Header() {
+                        return (
+                          <div className="sign-up-header">
+                            <h3>Create Account</h3>
+                            <p>Sign up to get started</p>
+                          </div>
+                        );
+                      }
+                    }
+                  }}
+                  formFields={{
+                    signIn: {
+                      username: {
+                        placeholder: 'Enter your email address',
+                        label: 'Email Address',
+                        isRequired: true,
+                      },
+                      password: {
+                        placeholder: 'Enter your password',
+                        label: 'Password',
+                        isRequired: true,
+                      }
+                    },
+                    signUp: {
+                      username: {
+                        placeholder: 'Enter your email address',
+                        label: 'Email Address',
+                        isRequired: true,
+                        order: 1
+                      },
+                      password: {
+                        placeholder: 'Create a password',
+                        label: 'Password',
+                        isRequired: true,
+                        order: 2
+                      },
+                      confirm_password: {
+                        placeholder: 'Confirm your password',
+                        label: 'Confirm Password',
+                        isRequired: true,
+                        order: 3
+                      }
+                    }
+                  }}
+                >
+                  {({ signOut, user: authenticatedUser }) => {
+                    // Update user state when authenticated
+                    if (authenticatedUser && !user) {
+                      handleAuthStateChange('signedIn', authenticatedUser);
+                    }
+                    
+                    return (
+                      <div className="authenticated-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Authentication successful! Loading application...</p>
+                      </div>
+                    );
+                  }}
+                </Authenticator>
+              </div>
+
+              <div className="auth-features">
+                <div className="feature-list">
+                  <div className="feature-item">
+                    <span className="feature-icon">⚡</span>
+                    <span>Fast & Accurate Translation</span>
+                  </div>
+                  <div className="feature-item">
+                    <span className="feature-icon">🔒</span>
+                    <span>Secure & Private</span>
+                  </div>
+                  <div className="feature-item">
+                    <span className="feature-icon">🌐</span>
+                    <span>75+ Languages Supported</span>
+                  </div>
+                  <div className="feature-item">
+                    <span className="feature-icon">📱</span>
+                    <span>Works on All Devices</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main application content (authenticated users only)
   return (
-    <div className="app" data-auth-state={user ? "authenticated" : "unauthenticated"}>
+    <div className="app" data-auth-state="authenticated">
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -101,116 +253,67 @@ function App() {
             </p>
           </div>
           
-          {user && (
-            <div className="header-right">
-              <div className="user-info">
-                <span className="user-email">
-                  👤 {user.signInDetails?.loginId || user.userId}
-                </span>
-                <button onClick={handleSignOut} className="sign-out-button">
-                  Sign Out
-                </button>
-              </div>
+          <div className="header-right">
+            <div className="user-info">
+              <span className="user-email">
+                👤 {user?.signInDetails?.loginId || user?.userId || 'User'}
+              </span>
+              <button onClick={handleSignOut} className="sign-out-button">
+                Sign Out
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="app-main">
-        {!user ? (
-          // Authentication flow
-          <div className="auth-container">
-            <div className="auth-content">
-              <div className="auth-header">
-                <h2>Welcome to AWS Translate</h2>
-                <p>Sign in to start translating text between multiple languages</p>
+        <div className="main-content">
+          {/* Welcome Section */}
+          <section className="welcome-section">
+            <div className="welcome-content">
+              <h2>🎯 Ready to Translate</h2>
+              <p>
+                Upload a JSON file with text to translate, or enter text directly below. 
+                Our serverless translation service supports {Object.keys(awsConfig.SUPPORTED_LANGUAGES || {}).length}+ languages.
+              </p>
+            </div>
+          </section>
+
+          {/* Translation Interface */}
+          <section className="translation-section">
+            <TranslationForm user={user} />
+          </section>
+
+          {/* Features Section */}
+          <section className="features-section">
+            <div className="features-grid">
+              <div className="feature-card">
+                <div className="feature-icon">⚡</div>
+                <h3>Fast Translation</h3>
+                <p>Powered by AWS Translate for quick and accurate results</p>
               </div>
               
-              <Authenticator
-                socialProviders={[]}
-                variation="modal"
-                components={{
-                  Header() {
-                    return (
-                      <div className="auth-logo">
-                        <h3>🔐 Secure Authentication</h3>
-                      </div>
-                    );
-                  },
-                  Footer() {
-                    return (
-                      <div className="auth-footer">
-                        <p>Powered by AWS Cognito</p>
-                      </div>
-                    );
-                  }
-                }}
-              >
-                {({ signOut, user: authenticatedUser }) => {
-                  // Update user state when authenticated
-                  if (authenticatedUser && !user) {
-                    setUser(authenticatedUser);
-                  }
-                  
-                  return (
-                    <div className="authenticated-content">
-                      <p>Authentication successful! Redirecting...</p>
-                    </div>
-                  );
-                }}
-              </Authenticator>
+              <div className="feature-card">
+                <div className="feature-icon">🔒</div>
+                <h3>Secure</h3>
+                <p>Your data is protected with AWS security best practices</p>
+              </div>
+              
+              <div className="feature-card">
+                <div className="feature-icon">🌐</div>
+                <h3>Multi-Language</h3>
+                <p>Support for 75+ languages and language variants</p>
+              </div>
+              
+              <div className="feature-card">
+                <div className="feature-icon">📱</div>
+                <h3>Responsive</h3>
+                <p>Works seamlessly on desktop, tablet, and mobile devices</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          // Main application content
-          <div className="main-content">
-            {/* Welcome Section */}
-            <section className="welcome-section">
-              <div className="welcome-content">
-                <h2>🎯 Ready to Translate</h2>
-                <p>
-                  Upload a JSON file with text to translate, or enter text directly below. 
-                  Our serverless translation service supports {Object.keys(awsConfig.SUPPORTED_LANGUAGES || {}).length}+ languages.
-                </p>
-              </div>
-            </section>
-
-            {/* Translation Interface */}
-            <section className="translation-section">
-              <TranslationForm user={user} />
-            </section>
-
-            {/* Features Section */}
-            <section className="features-section">
-              <div className="features-grid">
-                <div className="feature-card">
-                  <div className="feature-icon">⚡</div>
-                  <h3>Fast Translation</h3>
-                  <p>Powered by AWS Translate for quick and accurate results</p>
-                </div>
-                
-                <div className="feature-card">
-                  <div className="feature-icon">🔒</div>
-                  <h3>Secure</h3>
-                  <p>Your data is protected with AWS security best practices</p>
-                </div>
-                
-                <div className="feature-card">
-                  <div className="feature-icon">🌐</div>
-                  <h3>Multi-Language</h3>
-                  <p>Support for 75+ languages and language variants</p>
-                </div>
-                
-                <div className="feature-card">
-                  <div className="feature-icon">📱</div>
-                  <h3>Responsive</h3>
-                  <p>Works seamlessly on desktop, tablet, and mobile devices</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
+          </section>
+        </div>
       </main>
 
       {/* Footer */}

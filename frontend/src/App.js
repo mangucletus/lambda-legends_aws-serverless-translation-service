@@ -17,7 +17,7 @@ function App() {
     return (
       <div className="app-error">
         <div className="error-container">
-          <h2>⚙️ Configuration Required</h2>
+          <h2>Configuration Required</h2>
           <p>{configError}</p>
           <div className="config-help">
             <h3>For Developers:</h3>
@@ -28,7 +28,7 @@ function App() {
             </ol>
           </div>
           <button onClick={() => window.location.reload()} className="retry-button">
-            🔄 Retry
+            Retry
           </button>
         </div>
       </div>
@@ -44,7 +44,7 @@ function App() {
         Header() {
           return (
             <div className="authenticator-header">
-              <h3>🔐 Secure Authentication</h3>
+              <h3>Secure Authentication</h3>
               <p>Sign in to start translating</p>
             </div>
           );
@@ -118,7 +118,7 @@ function App() {
           <header className="app-header">
             <div className="header-content">
               <div className="header-left">
-                <h1 className="app-title">🌍 AWS Translate</h1>
+                <h1 className="app-title">AWS Translate</h1>
                 <p className="app-subtitle">
                   Translate text between multiple languages using AWS services
                 </p>
@@ -127,7 +127,7 @@ function App() {
               <div className="header-right">
                 <div className="user-info">
                   <span className="user-email">
-                    👤 {user?.signInDetails?.loginId || user?.username || 'User'}
+                    {user?.signInDetails?.loginId || user?.username || 'User'}
                   </span>
                   <button onClick={signOut} className="sign-out-button">
                     Sign Out
@@ -143,7 +143,7 @@ function App() {
               {/* Welcome Section */}
               <section className="welcome-section">
                 <div className="welcome-content">
-                  <h2>🚀 Ready to Translate</h2>
+                  <h2>Ready to Translate</h2>
                   <p>
                     Upload a JSON file with text to translate, or enter text directly below.
                     Our serverless translation service supports{' '}
@@ -151,15 +151,12 @@ function App() {
                   </p>
                   <div className="features-highlight">
                     <div className="feature-chip">
-                      <span className="feature-icon">⚡</span>
                       <span>Instant Translation</span>
                     </div>
                     <div className="feature-chip">
-                      <span className="feature-icon">🔒</span>
                       <span>Secure & Private</span>
                     </div>
                     <div className="feature-chip">
-                      <span className="feature-icon">☁️</span>
                       <span>Cloud Powered</span>
                     </div>
                   </div>

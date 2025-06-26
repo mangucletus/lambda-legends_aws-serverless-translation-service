@@ -80,9 +80,9 @@ resource "aws_s3_bucket" "request_bucket" {
     Project     = var.project_name
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # S3 Bucket for storing translation responses
@@ -95,9 +95,9 @@ resource "aws_s3_bucket" "response_bucket" {
     Project     = var.project_name
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # S3 Bucket for hosting the React frontend
@@ -110,9 +110,9 @@ resource "aws_s3_bucket" "frontend_bucket" {
     Project     = var.project_name
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # Configure S3 bucket versioning for request bucket
@@ -234,9 +234,9 @@ resource "aws_dynamodb_table" "user_data" {
     Project     = var.project_name
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # DynamoDB table for storing translation metadata
@@ -278,9 +278,9 @@ resource "aws_dynamodb_table" "translation_metadata" {
     Project     = var.project_name
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
 
 # IAM role for Lambda function
@@ -361,9 +361,9 @@ resource "aws_iam_policy" "lambda_policy" {
     ]
   })
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # lifecycle {
+  #   create_before_destroy = true
+  # }
 }
 
 # Separate IAM policy for DynamoDB access
@@ -394,9 +394,9 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
     ]
   })
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # lifecycle {
+  #   create_before_destroy = true
+  # }
 }
 
 # Attach policy to Lambda role
@@ -792,9 +792,9 @@ resource "aws_api_gateway_deployment" "translate_deployment" {
     ]))
   }
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # lifecycle {
+  #   create_before_destroy = true
+  # }
 }
 
 # API Gateway stage

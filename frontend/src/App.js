@@ -71,7 +71,7 @@ function App() {
             return (
               <div className="sign-up-header">
                 <h3>Create Account</h3>
-                <p>Sign up to get started</p>
+                <p>Join us and start translating</p>
               </div>
             );
           },
@@ -98,7 +98,7 @@ function App() {
             order: 1,
           },
           password: {
-            placeholder: 'Create a password',
+            placeholder: 'Create a password (min 8 characters)',
             label: 'Password',
             isRequired: true,
             order: 2,
@@ -143,12 +143,26 @@ function App() {
               {/* Welcome Section */}
               <section className="welcome-section">
                 <div className="welcome-content">
-                  <h2>🎯 Ready to Translate</h2>
+                  <h2> Ready to Translate</h2>
                   <p>
                     Upload a JSON file with text to translate, or enter text directly below.
                     Our serverless translation service supports{' '}
                     {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ languages.
                   </p>
+                  <div className="features-highlight">
+                    <div className="feature-chip">
+                      <span className="feature-icon">⚡</span>
+                      <span>Instant Translation</span>
+                    </div>
+                    <div className="feature-chip">
+                      <span className="feature-icon">🔒</span>
+                      <span>Secure & Private</span>
+                    </div>
+                    <div className="feature-chip">
+                      <span className="feature-icon">☁️</span>
+                      <span>Cloud Powered</span>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -192,7 +206,7 @@ function App() {
           <footer className="app-footer">
             <div className="footer-content">
               <div className="footer-left">
-                <p>&copy; 2024 AWS Translate Application. Built with ❤️ using AWS services.</p>
+                <p>&copy; Developed by Team Lambda Legends.</p>
               </div>
 
               <div className="footer-right">

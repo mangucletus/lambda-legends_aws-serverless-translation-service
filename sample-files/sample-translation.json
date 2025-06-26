@@ -11,18 +11,34 @@
     "AWS Translate provides fast and accurate machine translation.",
     "This application is built with React, AWS Lambda, and Amazon S3.",
     "Upload this file to see how batch translation works.",
-    "The results will be saved to the response bucket automatically."
+    "The results will be saved to the response bucket automatically.",
+    "Your request will be saved in the Request S3 Bucket.",
+    "The translated results will appear in the Response S3 Bucket.",
+    "You can now see the translated text clearly displayed in the application.",
+    "The success rate and character count calculations are now working correctly.",
+    "Language selection has been improved with better visual design.",
+    "The authentication form now only requires email once during signup."
   ],
   "metadata": {
-    "description": "Sample translation request for AWS Translate application",
-    "created_by": "AWS Translate Demo",
-    "creation_date": "2024-06-25",
-    "file_version": "1.0",
+    "description": "Enhanced sample translation request for AWS Translate application",
+    "created_by": "AWS Translate Demo - Team Lambda Legends",
+    "creation_date": "2024-06-26",
+    "file_version": "2.0",
+    "improvements": [
+      "Fixed translation results display",
+      "Improved calculation accuracy",
+      "Enhanced language selection UI",
+      "Better S3 bucket management",
+      "Simplified authentication flow"
+    ],
     "notes": [
-      "This is a sample file to demonstrate the translation functionality",
+      "This is an enhanced sample file to demonstrate the improved translation functionality",
       "You can modify the source_language, target_language, and texts fields",
       "Supported language codes are available in the AWS Translate documentation",
-      "Each text string should be under 5000 bytes for optimal performance"
+      "Each text string should be under 5000 bytes for optimal performance",
+      "Request data will be automatically saved to the Request S3 Bucket",
+      "Translation results will be saved to the Response S3 Bucket",
+      "Results are now displayed clearly in the application interface"
     ],
     "examples": {
       "language_codes": {
@@ -46,7 +62,39 @@
         "en → zh (English to Chinese)",
         "es → en (Spanish to English)",
         "fr → en (French to English)"
-      ]
-    }
+      ],
+      "expected_response_format": {
+        "request_metadata": {
+          "source_language": "en",
+          "target_language": "es",
+          "total_texts": 16,
+          "successful_translations": 16,
+          "failed_translations": 0,
+          "timestamp": "2024-06-26T11:21:29.684642"
+        },
+        "translations": [
+          {
+            "original_text": "Hello, world!",
+            "translated_text": "¡Hola, mundo!",
+            "index": 0,
+            "status": "success",
+            "source_language_detected": "en",
+            "target_language": "es"
+          }
+        ],
+        "summary": {
+          "success_rate": 100,
+          "total_characters_translated": 150
+        }
+      }
+    },
+    "testing_instructions": [
+      "1. Upload this file using the File Upload tab",
+      "2. Wait for the translation to complete",
+      "3. Check the 'Translated Text' section for clear results",
+      "4. Verify the statistics show correct counts and percentages",
+      "5. Confirm request was saved to Request S3 Bucket",
+      "6. Confirm response was saved to Response S3 Bucket"
+    ]
   }
 }

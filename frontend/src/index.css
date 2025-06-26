@@ -27,6 +27,15 @@
     --auth-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --auth-overlay: rgba(255, 255, 255, 0.95);
 
+    /* Language Selection Colors */
+    --language-bg: #ffffff;
+    --language-bg-hover: #f0f9ff;
+    --language-bg-active: #3b82f6;
+    --language-text: #374151;
+    --language-text-active: #ffffff;
+    --language-border: #d1d5db;
+    --language-border-hover: #3b82f6;
+
     /* Border and Shadow */
     --border-color: #e5e7eb;
     --border-radius: 8px;
@@ -194,34 +203,6 @@ body {
     font-size: var(--font-size-sm);
 }
 
-.authenticated-loading {
-    text-align: center;
-    padding: var(--spacing-xl);
-}
-
-.auth-features {
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    padding-top: var(--spacing-lg);
-}
-
-.feature-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-md);
-}
-
-.feature-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-}
-
-.feature-icon {
-    font-size: var(--font-size-lg);
-}
-
 /* Header Styles */
 .app-header {
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
@@ -296,7 +277,31 @@ body {
     font-size: var(--font-size-lg);
     color: var(--text-secondary);
     max-width: 600px;
-    margin: 0 auto;
+    margin: 0 auto var(--spacing-lg);
+}
+
+.features-highlight {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-lg);
+}
+
+.feature-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: var(--primary-light);
+    color: var(--primary-color);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.feature-chip .feature-icon {
+    font-size: var(--font-size-base);
 }
 
 /* Translation Form */
@@ -308,7 +313,7 @@ body {
     margin-bottom: var(--spacing-2xl);
 }
 
-/* Language Section */
+/* Language Section - ENHANCED STYLING */
 .language-section {
     margin-bottom: var(--spacing-xl);
 }
@@ -336,26 +341,40 @@ body {
     margin-bottom: var(--spacing-lg);
 }
 
+/* IMPROVED LANGUAGE SELECTION BUTTONS */
 .pair-button {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 2px solid var(--border-color);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: 2px solid var(--language-border);
     border-radius: var(--border-radius);
-    background: var(--background);
-    color: var(--text-secondary);
+    background: var(--language-bg);
+    color: var(--language-text);
     cursor: pointer;
     transition: var(--transition);
     font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-align: center;
+    box-shadow: var(--shadow);
 }
 
 .pair-button:hover {
-    border-color: var(--primary-color);
+    border-color: var(--language-border-hover);
+    background-color: var(--language-bg-hover);
     color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .pair-button.active {
+    border-color: var(--language-bg-active);
+    background-color: var(--language-bg-active);
+    color: var(--language-text-active);
+    box-shadow: var(--shadow-md);
+}
+
+.pair-button:focus {
+    outline: none;
     border-color: var(--primary-color);
-    background-color: var(--primary-light);
-    color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .language-controls {
@@ -376,19 +395,47 @@ body {
     color: var(--text-secondary);
 }
 
+/* IMPROVED LANGUAGE DROPDOWN STYLING */
 .language-select select {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 2px solid var(--border-color);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: 2px solid var(--language-border);
     border-radius: var(--border-radius);
     font-size: var(--font-size-base);
-    background: var(--background);
+    background: var(--language-bg);
+    color: var(--language-text);
     transition: var(--transition);
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+    appearance: none;
+}
+
+.language-select select:hover {
+    border-color: var(--language-border-hover);
+    background-color: var(--language-bg-hover);
 }
 
 .language-select select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 115, 187, 0.1);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background-color: var(--language-bg-hover);
+}
+
+/* ENHANCED SELECT OPTIONS */
+.language-select select option {
+    background: var(--language-bg);
+    color: var(--language-text);
+    padding: var(--spacing-sm);
+}
+
+.language-select select option:hover,
+.language-select select option:checked {
+    background: var(--language-bg-active);
+    color: var(--language-text-active);
 }
 
 .swap-button {
@@ -754,10 +801,87 @@ body {
     font-weight: 500;
 }
 
+/* SIMPLE TRANSLATION DISPLAY - NEW SECTION */
+.simple-translation-display {
+    background: var(--background);
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--success-color);
+}
+
+.simple-translation-display h4 {
+    color: var(--success-color);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.translated-texts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.simple-translation-item {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    border: 1px solid #d1fae5;
+}
+
+.simple-translated-text {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
+.simple-text-content {
+    flex: 1;
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+    font-weight: 500;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.simple-copy-button {
+    background: var(--success-color);
+    color: var(--text-white);
+    border: none;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+}
+
+.simple-copy-button:hover {
+    background: #059669;
+    transform: scale(1.05);
+}
+
+.no-translations {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
 .translations-list {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+}
+
+.translations-list h4 {
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
 }
 
 .translation-item {
@@ -1116,6 +1240,11 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .features-highlight {
+        flex-direction: column;
+        align-items: center;
+    }
+
     .footer-content {
         flex-direction: column;
         gap: var(--spacing-md);
@@ -1134,7 +1263,7 @@ body {
     }
 
     .summary-stats {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .translation-item {
@@ -1144,6 +1273,16 @@ body {
     .translation-item::before {
         width: 100%;
         height: 4px;
+    }
+
+    .simple-translated-text {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .simple-copy-button {
+        align-self: flex-end;
     }
 }
 
@@ -1196,6 +1335,9 @@ body {
         --background: #111827;
         --background-secondary: #1f2937;
         --border-color: #374151;
+        --language-bg: #1f2937;
+        --language-text: #f9fafb;
+        --language-border: #374151;
     }
 }
 
@@ -1223,273 +1365,4 @@ input:focus {
         --border-color: #000000;
         --text-secondary: #000000;
     }
-}
-
-
-/* authcomponent style */
-
-/* Add this to your existing index.css file */
-
-/* Authentication App Layout - Completely Isolated */
-.auth-app-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
-    /* Very high z-index to ensure it's on top */
-    overflow-y: auto;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    /* Ensure nothing bleeds through */
-    backdrop-filter: blur(0);
-}
-
-.auth-background {
-    min-height: 100vh;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--spacing-lg);
-    position: relative;
-    /* Completely opaque background */
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.auth-background::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
-    pointer-events: none;
-}
-
-.auth-container {
-    width: 100%;
-    max-width: 450px;
-    position: relative;
-    z-index: 10001;
-}
-
-.auth-content {
-    background: rgba(255, 255, 255, 0.98);
-    /* More opaque */
-    backdrop-filter: blur(20px);
-    /* Stronger blur */
-    border-radius: var(--border-radius-large);
-    padding: var(--spacing-2xl);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    /* Stronger shadow */
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* Ensure authenticated app is completely hidden when not authenticated */
-.authenticated-app {
-    display: block;
-}
-
-/* Hide any potential content that might leak through */
-.auth-app-container~* {
-    display: none !important;
-}
-
-/* Override any potential z-index conflicts */
-.auth-form-container {
-    position: relative;
-    z-index: 10002;
-}
-
-/* Ensure Amplify components stay within the auth container */
-.auth-form-container [data-amplify-authenticator] {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    position: relative;
-    z-index: 10003;
-}
-
-.auth-form-container [data-amplify-authenticator] * {
-    z-index: auto;
-}
-
-/* Strong isolation for auth features */
-.auth-features {
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    padding-top: var(--spacing-lg);
-    background: rgba(255, 255, 255, 0.5);
-    margin: var(--spacing-lg) calc(-1 * var(--spacing-2xl));
-    padding-left: var(--spacing-2xl);
-    padding-right: var(--spacing-2xl);
-    border-radius: 0 0 var(--border-radius-large) var(--border-radius-large);
-}
-
-/* Additional CSS additions to existing styles */
-
-/* Fix for authentication header styling */
-.auth-header {
-    text-align: center;
-    margin-bottom: var(--spacing-xl);
-    position: relative;
-    z-index: 10004;
-}
-
-.auth-logo h1 {
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    color: var(--primary-color);
-    margin-bottom: var(--spacing-sm);
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.auth-logo p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-lg);
-    line-height: 1.4;
-}
-
-/* Enhanced styling for auth components */
-.authenticator-header {
-    text-align: center;
-    margin-bottom: var(--spacing-lg);
-    position: relative;
-    z-index: 10005;
-}
-
-.authenticator-header h3 {
-    color: var(--primary-color);
-    margin-bottom: var(--spacing-sm);
-    font-weight: 600;
-}
-
-.authenticator-header p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-.authenticator-footer {
-    text-align: center;
-    margin-top: var(--spacing-lg);
-    font-size: var(--font-size-sm);
-    color: var(--text-muted);
-    position: relative;
-    z-index: 10005;
-}
-
-/* Better form field styling within auth */
-.sign-in-header,
-.sign-up-header {
-    text-align: center;
-    margin-bottom: var(--spacing-lg);
-    position: relative;
-    z-index: 10005;
-}
-
-.sign-in-header h3,
-.sign-up-header h3 {
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-xs);
-    font-weight: 600;
-}
-
-.sign-in-header p,
-.sign-up-header p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-}
-
-/* Feature list styling within auth */
-.feature-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-md);
-    position: relative;
-    z-index: 10004;
-}
-
-.feature-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    padding: var(--spacing-sm);
-    border-radius: var(--border-radius);
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.feature-icon {
-    font-size: var(--font-size-lg);
-    flex-shrink: 0;
-}
-
-/* Ensure no content bleeds through on mobile */
-@media (max-width: 768px) {
-    .auth-app-container {
-        position: fixed;
-        overflow-x: hidden;
-    }
-
-    .auth-background {
-        padding: var(--spacing-md);
-        min-height: 100vh;
-        align-items: flex-start;
-        padding-top: var(--spacing-xl);
-    }
-
-    .auth-content {
-        padding: var(--spacing-lg);
-        margin: 0;
-        width: 100%;
-    }
-
-    .feature-list {
-        grid-template-columns: 1fr;
-    }
-
-    .auth-features {
-        margin-left: calc(-1 * var(--spacing-lg));
-        margin-right: calc(-1 * var(--spacing-lg));
-        padding-left: var(--spacing-lg);
-        padding-right: var(--spacing-lg);
-    }
-}
-
-/* Additional overrides for Amplify UI */
-[data-amplify-authenticator] {
-    --amplify-colors-brand-primary-10: var(--primary-light);
-    --amplify-colors-brand-primary-40: var(--primary-color);
-    --amplify-colors-brand-primary-80: var(--primary-dark);
-    --amplify-radii-small: var(--border-radius);
-    --amplify-radii-medium: var(--border-radius-large);
-    position: relative !important;
-    z-index: 10003 !important;
-}
-
-[data-amplify-authenticator] [data-amplify-router] {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    position: relative !important;
-    z-index: 10003 !important;
-}
-
-[data-amplify-authenticator] [data-amplify-container] {
-    background: transparent !important;
-    position: relative !important;
-    z-index: 10003 !important;
-}
-
-/* Prevent any scroll issues during auth */
-body:has(.auth-app-container) {
-    overflow: hidden;
-}
-
-/* Reset body overflow when authenticated */
-body:has(.authenticated-app) {
-    overflow: auto;
 }

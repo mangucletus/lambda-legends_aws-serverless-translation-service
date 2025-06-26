@@ -18,13 +18,20 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "eslint src/**/*.{js,jsx}",
+    "lint:fix": "eslint src/**/*.{js,jsx} --fix",
+    "format": "prettier --write src/**/*.{js,jsx,css,json}"
   },
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "rules": {
+      "no-unused-vars": "warn",
+      "no-console": "warn"
+    }
   },
   "browserslist": {
     "production": [
@@ -37,5 +44,21 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  }
+  },
+  "devDependencies": {
+    "eslint": "^8.45.0",
+    "prettier": "^3.0.0"
+  },
+  "keywords": [
+    "aws",
+    "translate",
+    "react",
+    "translation",
+    "serverless",
+    "amplify"
+  ],
+  "author": "Team Lambda Legends",
+  "license": "MIT",
+  "homepage": ".",
+  "proxy": "http://localhost:3000"
 }

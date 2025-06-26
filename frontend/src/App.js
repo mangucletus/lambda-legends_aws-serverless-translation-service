@@ -143,7 +143,7 @@ function App() {
               {/* Welcome Section */}
               <section className="welcome-section">
                 <div className="welcome-content">
-                  <h2> Ready to Translate</h2>
+                  <h2>🚀 Ready to Translate</h2>
                   <p>
                     Upload a JSON file with text to translate, or enter text directly below.
                     Our serverless translation service supports{' '}

@@ -39,37 +39,6 @@ resource "random_string" "suffix" {
   }
 }
 
-# Import existing resources if they exist
-import {
-  to = random_string.suffix
-  id = "toqpxguz"
-}
-
-# Data sources to check for existing resources
-data "aws_iam_policy" "existing_lambda_policy" {
-  count = 1
-  name  = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
-
-  lifecycle {
-    postcondition {
-      condition     = can(self.arn)
-      error_message = "Policy does not exist, will be created"
-    }
-  }
-}
-
-data "aws_iam_policy" "existing_lambda_dynamodb_policy" {
-  count = 1
-  name  = "${var.project_name}-lambda-dynamodb-policy-${random_string.suffix.result}"
-
-  lifecycle {
-    postcondition {
-      condition     = can(self.arn)
-      error_message = "DynamoDB policy does not exist, will be created"
-    }
-  }
-}
-
 # S3 Bucket for storing translation requests
 resource "aws_s3_bucket" "request_bucket" {
   bucket = "${var.project_name}-requests-${random_string.suffix.result}"

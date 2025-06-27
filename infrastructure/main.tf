@@ -469,10 +469,10 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   auto_verified_attributes = ["email"]
-  # username_attributes      = ["email"]
+  username_attributes      = ["email"]
 
   # FIXED: Allow both username and email for sign in
-  alias_attributes = ["email", "preferred_username"]
+  # alias_attributes = ["email", "preferred_username"]
 
   account_recovery_setting {
     recovery_mechanism {

@@ -1,5 +1,5 @@
 // frontend/src/App.js
-// Main React application component with FIXED authentication form fields
+// FIXED VERSION - Correct authentication form with username, email, password, confirm password
 
 import React from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
@@ -44,15 +44,15 @@ function App() {
         Header() {
           return (
             <div className="authenticator-header">
-              <h3>Secure Authentication</h3>
-              <p>Sign in to start translating</p>
+              <h3>🔐 Secure Authentication</h3>
+              <p>Sign in to start translating text securely</p>
             </div>
           );
         },
         Footer() {
           return (
             <div className="authenticator-footer">
-              <p>Powered by AWS Cognito</p>
+              <p>🔒 Powered by AWS Cognito - Your data is secure</p>
             </div>
           );
         },
@@ -60,8 +60,8 @@ function App() {
           Header() {
             return (
               <div className="sign-in-header">
-                <h3>Welcome Back</h3>
-                <p>Sign in to your account</p>
+                <h3>👋 Welcome Back</h3>
+                <p>Sign in to your translation account</p>
               </div>
             );
           },
@@ -70,8 +70,8 @@ function App() {
           Header() {
             return (
               <div className="sign-up-header">
-                <h3>Create Account</h3>
-                <p>Join us and start translating</p>
+                <h3>🚀 Create Account</h3>
+                <p>Join us and start translating instantly</p>
               </div>
             );
           },
@@ -104,7 +104,7 @@ function App() {
             order: 2,
           },
           password: {
-            placeholder: 'Create a password (min 8 characters)',
+            placeholder: 'Create a strong password (min 8 characters)',
             label: 'Password',
             isRequired: true,
             order: 3,
@@ -116,6 +116,20 @@ function App() {
             order: 4,
           },
         },
+        confirmSignUp: {
+          confirmation_code: {
+            placeholder: 'Enter the confirmation code sent to your email',
+            label: 'Confirmation Code',
+            isRequired: true,
+          },
+        },
+        forceNewPassword: {
+          password: {
+            placeholder: 'Enter your new password',
+            label: 'New Password',
+            isRequired: true,
+          },
+        },
       }}
     >
       {({ user }) => (
@@ -124,19 +138,22 @@ function App() {
           <header className="app-header">
             <div className="header-content">
               <div className="header-left">
-                <h1 className="app-title">AWS Translate</h1>
+                <h1 className="app-title">🌐 AWS Translate</h1>
                 <p className="app-subtitle">
-                  Translate text between multiple languages using AWS services
+                  Professional translation service powered by AWS
                 </p>
               </div>
 
               <div className="header-right">
                 <div className="user-info">
-                  <span className="user-email">
-                    {user?.signInDetails?.loginId || user?.username || 'User'}
-                  </span>
+                  <div className="user-details">
+                    <span className="user-greeting">👋 Hello</span>
+                    <span className="user-email">
+                      {user?.signInDetails?.loginId || user?.username || 'User'}
+                    </span>
+                  </div>
                   <button onClick={signOut} className="sign-out-button">
-                    Sign Out
+                    🚪 Sign Out
                   </button>
                 </div>
               </div>
@@ -149,21 +166,24 @@ function App() {
               {/* Welcome Section */}
               <section className="welcome-section">
                 <div className="welcome-content">
-                  <h2>Ready to Translate</h2>
+                  <h2>🎯 Ready to Translate</h2>
                   <p>
-                    Upload a JSON file with text to translate, or enter text directly below.
-                    Our serverless translation service supports{' '}
-                    {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ languages.
+                    Transform your text into {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ languages 
+                    instantly. Enter text directly or upload a JSON file to get started.
+                    Our AI-powered translation service delivers accurate results in seconds.
                   </p>
                   <div className="features-highlight">
                     <div className="feature-chip">
-                      <span>Instant Translation</span>
+                      <span>⚡ Instant Results</span>
                     </div>
                     <div className="feature-chip">
-                      <span>Secure & Private</span>
+                      <span>🔒 Secure & Private</span>
                     </div>
                     <div className="feature-chip">
-                      <span>Cloud Powered</span>
+                      <span>☁️ Cloud Powered</span>
+                    </div>
+                    <div className="feature-chip">
+                      <span>🌍 75+ Languages</span>
                     </div>
                   </div>
                 </div>
@@ -179,26 +199,38 @@ function App() {
                 <div className="features-grid">
                   <div className="feature-card">
                     <div className="feature-icon">⚡</div>
-                    <h3>Fast Translation</h3>
-                    <p>Powered by AWS Translate for quick and accurate results</p>
+                    <h3>Lightning Fast</h3>
+                    <p>Powered by AWS Translate for instant, high-quality results</p>
                   </div>
 
                   <div className="feature-card">
                     <div className="feature-icon">🔒</div>
-                    <h3>Secure</h3>
-                    <p>Your data is protected with AWS security best practices</p>
+                    <h3>Enterprise Security</h3>
+                    <p>Your data is protected with AWS enterprise-grade security</p>
                   </div>
 
                   <div className="feature-card">
                     <div className="feature-icon">🌐</div>
-                    <h3>Multi-Language</h3>
-                    <p>Support for 75+ languages and language variants</p>
+                    <h3>Global Reach</h3>
+                    <p>Support for 75+ languages and regional variants worldwide</p>
                   </div>
 
                   <div className="feature-card">
                     <div className="feature-icon">📱</div>
-                    <h3>Responsive</h3>
+                    <h3>Universal Access</h3>
                     <p>Works seamlessly on desktop, tablet, and mobile devices</p>
+                  </div>
+
+                  <div className="feature-card">
+                    <div className="feature-icon">🚀</div>
+                    <h3>Serverless Scale</h3>
+                    <p>Automatically scales to handle any volume of translations</p>
+                  </div>
+
+                  <div className="feature-card">
+                    <div className="feature-icon">💾</div>
+                    <h3>Smart Storage</h3>
+                    <p>Automatic backup and retrieval of translation history</p>
                   </div>
                 </div>
               </section>
@@ -209,7 +241,8 @@ function App() {
           <footer className="app-footer">
             <div className="footer-content">
               <div className="footer-left">
-                <p>&copy; Developed by Team Lambda Legends.</p>
+                <p>&copy; 2024 Team Lambda Legends. Professional Translation Solutions.</p>
+                <p>Built with React, AWS Lambda, Amazon Translate & S3</p>
               </div>
 
               <div className="footer-right">
@@ -220,7 +253,7 @@ function App() {
                     rel="noopener noreferrer"
                     className="footer-link"
                   >
-                    AWS Translate
+                    🔗 AWS Translate
                   </a>
                   <a
                     href="https://docs.aws.amazon.com/translate/"
@@ -228,7 +261,7 @@ function App() {
                     rel="noopener noreferrer"
                     className="footer-link"
                   >
-                    Documentation
+                    📚 Documentation
                   </a>
                   <a
                     href="https://github.com"
@@ -236,7 +269,13 @@ function App() {
                     rel="noopener noreferrer"
                     className="footer-link"
                   >
-                    GitHub
+                    💻 GitHub
+                  </a>
+                  <a
+                    href="mailto:support@translate.app"
+                    className="footer-link"
+                  >
+                    📧 Support
                   </a>
                 </div>
               </div>

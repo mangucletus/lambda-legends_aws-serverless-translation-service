@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0073bb" />
     <meta name="description"
@@ -13,48 +14,168 @@
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="%PUBLIC_URL%" />
     <meta property="og:title" content="AWS Translate Application" />
     <meta property="og:description" content="Translate text between multiple languages using AWS services" />
-    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="%PUBLIC_URL%" />
     <meta property="twitter:title" content="AWS Translate Application" />
     <meta property="twitter:description" content="Translate text between multiple languages using AWS services" />
-    <meta property="twitter:image" content="%PUBLIC_URL%/logo512.png" />
-
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
     <!-- Preload fonts for better performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- FIXED: Define process before any scripts load -->
+    <!-- CRITICAL FIX: Define globals before any scripts load -->
     <script>
-        // Fix "process is not defined" error
-        window.process = window.process || {
-            env: {
-                NODE_ENV: 'production'
-            }
-        };
+        // Fix "process is not defined" error completely
+        if (typeof global === 'undefined') {
+            var global = globalThis || window || self;
+        }
 
-        // Global error handler
+        if (typeof process === 'undefined') {
+            window.process = {
+                env: {
+                    NODE_ENV: 'production',
+                    REACT_APP_AWS_REGION: '',
+                    REACT_APP_USER_POOL_ID: '',
+                    REACT_APP_USER_POOL_CLIENT_ID: '',
+                    REACT_APP_IDENTITY_POOL_ID: '',
+                    REACT_APP_API_GATEWAY_URL: '',
+                    REACT_APP_REQUEST_BUCKET: '',
+                    REACT_APP_RESPONSE_BUCKET: ''
+                },
+                nextTick: function (callback) {
+                    setTimeout(callback, 0);
+                },
+                version: 'v16.0.0',
+                platform: 'browser'
+            };
+        }
+
+        // Additional polyfills for missing Node.js globals
+        if (typeof Buffer === 'undefined') {
+            window.Buffer = {
+                from: function (str) { return { toString: function () { return str; } }; },
+                isBuffer: function () { return false; }
+            };
+        }
+
+        // Comprehensive error handler that prevents app crashes
         window.addEventListener('error', function (event) {
-            console.error('Application error:', event.error);
+            console.error('🚨 Application error:', event.error);
 
-            // Don't break the app for known non-critical errors
-            if (event.error && event.error.message &&
-                (event.error.message.includes('process is not defined') ||
-                    event.error.message.includes('ServiceWorker'))) {
-                console.log('🔧 Non-critical error handled gracefully');
+            // Handle specific known errors gracefully
+            if (event.error && event.error.message) {
+                const errorMessage = event.error.message.toLowerCase();
+
+                // Don't break the app for these non-critical errors
+                if (errorMessage.includes('process is not defined') ||
+                    errorMessage.includes('serviceworker') ||
+                    errorMessage.includes('mime type') ||
+                    errorMessage.includes('logo192') ||
+                    errorMessage.includes('favicon') ||
+                    errorMessage.includes('manifest')) {
+
+                    console.log('🔧 Non-critical error handled gracefully:', event.error.message);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+
+                // Handle syntax errors that might indicate bundle loading issues
+                if (errorMessage.includes('unexpected token') ||
+                    errorMessage.includes('syntax error')) {
+                    console.error('🚨 Critical bundle loading error detected!');
+
+                    // Show fallback UI
+                    setTimeout(function () {
+                        showFallbackUI();
+                    }, 1000);
+
+                    event.preventDefault();
+                    return false;
+                }
+            }
+        });
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function (event) {
+            console.warn('🔧 Unhandled promise rejection:', event.reason);
+
+            // Don't break the app for certain promise rejections
+            if (event.reason && typeof event.reason === 'string' &&
+                (event.reason.includes('ServiceWorker') ||
+                    event.reason.includes('manifest') ||
+                    event.reason.includes('icon'))) {
                 event.preventDefault();
                 return false;
             }
         });
+
+        // Fallback UI for critical errors
+        function showFallbackUI() {
+            const root = document.getElementById('root');
+            if (root && (!root.hasChildNodes() || root.innerHTML.trim() === '')) {
+                root.innerHTML = `
+                    <div style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        padding: 2rem;
+                        text-align: center;
+                        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                        font-family: 'Inter', sans-serif;
+                    ">
+                        <div style="
+                            background: white;
+                            padding: 3rem;
+                            border-radius: 16px;
+                            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                            max-width: 500px;
+                            border: 3px solid #0073bb;
+                        ">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🌐</div>
+                            <h1 style="color: #0073bb; margin-bottom: 1rem; font-size: 2rem;">AWS Translate</h1>
+                            <p style="color: #6b7280; margin-bottom: 2rem; font-size: 1.1rem;">
+                                There seems to be a build issue. Please try refreshing the page.
+                            </p>
+                            <button onclick="window.location.reload()" style="
+                                background: #0073bb;
+                                color: white;
+                                border: none;
+                                padding: 1rem 2rem;
+                                border-radius: 8px;
+                                font-size: 1rem;
+                                font-weight: 600;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.background='#005a91'" onmouseout="this.style.background='#0073bb'">
+                                🔄 Refresh Page
+                            </button>
+                            <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                                    <strong>For Developers:</strong> Check the browser console for build errors. 
+                                    The JavaScript bundle may not be loading correctly.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Check if React is loading properly
+        setTimeout(function () {
+            const root = document.getElementById('root');
+            if (root && (!root.hasChildNodes() || root.innerHTML.trim() === '')) {
+                console.warn('🔧 React app did not load within expected time');
+                showFallbackUI();
+            }
+        }, 5000);
     </script>
 
     <!-- CSS Variables for consistent theming -->
@@ -114,7 +235,7 @@
             }
         }
 
-        /* FIXED: Ensure translation display is always visible */
+        /* CRITICAL: Ensure translation display is always visible */
         .main-translation-display {
             display: block !important;
             visibility: visible !important;
@@ -127,6 +248,12 @@
             border: 3px solid #10b981 !important;
         }
 
+        .translation-output-section {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
         .translated-texts-container {
             display: flex !important;
             flex-direction: column !important;
@@ -135,7 +262,9 @@
             opacity: 1 !important;
         }
 
-        .translation-item-container {
+        .translation-item-container,
+        .translation-success-item,
+        .translation-error-item {
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
@@ -184,7 +313,7 @@
         </div>
     </noscript>
 
-    <!-- Loading indicator while React loads -->
+    <!-- Enhanced loading indicator -->
     <div id="loading-indicator" style="
       position: fixed;
       top: 50%;
@@ -192,61 +321,94 @@
       transform: translate(-50%, -50%);
       text-align: center;
       z-index: 9999;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     ">
         <div class="loading-spinner"></div>
-        <p style="margin-top: 1rem; color: var(--text-secondary);">Loading AWS Translate Application...</p>
+        <p style="margin-top: 1rem; color: var(--text-secondary); font-weight: 500;">
+            Loading AWS Translate Application...
+        </p>
+        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.8rem;">
+            Initializing translation services
+        </p>
     </div>
 
     <!-- React app will mount here -->
     <div id="root"></div>
 
-    <!-- Hide loading indicator once React loads -->
+    <!-- Enhanced initialization script -->
     <script>
-        window.addEventListener('DOMContentLoaded', function () {
-            // Hide loading indicator after a short delay to allow React to render
-            setTimeout(function () {
-                const loadingIndicator = document.getElementById('loading-indicator');
-                if (loadingIndicator) {
+        // Hide loading indicator when React loads
+        function hideLoadingIndicator() {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            if (loadingIndicator) {
+                loadingIndicator.style.opacity = '0';
+                loadingIndicator.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(function () {
                     loadingIndicator.style.display = 'none';
+                }, 300);
+            }
+        }
+
+        // Check for React app mounting
+        function checkForReactApp() {
+            const root = document.getElementById('root');
+            if (root && root.hasChildNodes() && root.innerHTML.trim() !== '') {
+                hideLoadingIndicator();
+                console.log('✅ React app loaded successfully');
+                return true;
+            }
+            return false;
+        }
+
+        // Multiple checks for React loading
+        window.addEventListener('DOMContentLoaded', function () {
+            setTimeout(function () {
+                if (!checkForReactApp()) {
+                    // Try again after a bit more time
+                    setTimeout(function () {
+                        if (!checkForReactApp()) {
+                            console.warn('🔧 React app taking longer than expected to load');
+                        }
+                    }, 2000);
                 }
             }, 500);
         });
 
-        // FIXED: Service worker registration with comprehensive error handling
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function () {
-                // Determine if we're in production based on domain
-                const isProduction = window.location.hostname !== 'localhost' &&
-                    !window.location.hostname.includes('127.0.0.1');
-
-                if (isProduction) {
-                    // Try to register service worker in production only
-                    navigator.serviceWorker.register('/service-worker.js', {
-                        scope: '/'
-                    })
-                        .then(function (registration) {
-                            console.log('✅ SW registered successfully:', registration);
-                        })
-                        .catch(function (registrationError) {
-                            // Log the error but don't break the application
-                            console.warn('⚠️ SW registration failed (this is not critical):', registrationError.message);
-
-                            // Check for specific error types
-                            if (registrationError.message.includes('MIME type') ||
-                                registrationError.message.includes('text/html') ||
-                                registrationError.message.includes('SecurityError')) {
-                                console.info('💡 Service worker MIME type or security issue detected. App will work without SW.');
-                            }
-
-                            // Don't throw the error - just log it
-                            return null;
-                        });
-                } else {
-                    console.log('🔧 Development mode - skipping service worker registration');
-                }
+        // Mutation observer to detect React mounting
+        if (window.MutationObserver) {
+            const observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (mutation.type === 'childList' && mutation.target.id === 'root') {
+                        if (checkForReactApp()) {
+                            observer.disconnect();
+                        }
+                    }
+                });
             });
-        } else {
-            console.log('🔧 Service worker not supported in this browser');
+
+            const root = document.getElementById('root');
+            if (root) {
+                observer.observe(root, { childList: true, subtree: true });
+            }
+        }
+
+        // FIXED: Completely disable service worker to avoid errors
+        if ('serviceWorker' in navigator) {
+            // Unregister any existing service workers
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    registration.unregister().then(function () {
+                        console.log('🔧 Unregistered existing service worker');
+                    }).catch(function (error) {
+                        console.log('🔧 Service worker unregistration handled:', error.message);
+                    });
+                }
+            }).catch(function (error) {
+                console.log('🔧 Service worker cleanup handled:', error.message);
+            });
         }
 
         // Performance monitoring
@@ -255,17 +417,36 @@
                 setTimeout(function () {
                     const perfData = performance.getEntriesByType('navigation')[0];
                     if (perfData) {
-                        console.log('⚡ Page load time:', Math.round(perfData.loadEventEnd - perfData.fetchStart), 'ms');
+                        const loadTime = Math.round(perfData.loadEventEnd - perfData.fetchStart);
+                        console.log('⚡ Page load time:', loadTime, 'ms');
+
+                        if (loadTime > 5000) {
+                            console.warn('⚠️ Slow page load detected. Consider optimizing assets.');
+                        }
                     }
                 }, 1000);
             });
         }
 
-        // Debug information for developers
-        console.log('%c🚀 AWS Translate Application',
-            'color: #10b981; font-size: 16px; font-weight: bold;');
-        console.log('%cAll systems ready! Translation app loaded successfully.',
-            'color: #059669; font-size: 12px;');
+        // Development debug information
+        console.log('%c🚀 AWS Translate Application', 'color: #10b981; font-size: 16px; font-weight: bold;');
+        console.log('%c✅ Error handling and polyfills loaded', 'color: #059669; font-size: 12px;');
+        console.log('%c🔧 Build environment: ' + (process.env.NODE_ENV || 'production'), 'color: #0073bb; font-size: 12px;');
+
+        // Network connectivity check
+        if ('navigator' in window && 'onLine' in navigator) {
+            if (!navigator.onLine) {
+                console.warn('⚠️ No internet connection detected');
+            }
+
+            window.addEventListener('online', function () {
+                console.log('✅ Internet connection restored');
+            });
+
+            window.addEventListener('offline', function () {
+                console.warn('⚠️ Internet connection lost');
+            });
+        }
     </script>
 </body>
 

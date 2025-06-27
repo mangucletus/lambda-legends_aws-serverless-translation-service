@@ -164,6 +164,32 @@ resource "aws_s3_bucket_lifecycle_configuration" "response_bucket_lifecycle" {
   }
 }
 
+# CORS configuration for request bucket to allow browser uploads
+resource "aws_s3_bucket_cors_configuration" "request_bucket_cors" {
+  bucket = aws_s3_bucket.request_bucket.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"] # In production, replace with your specific domain
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
+# CORS configuration for response bucket
+resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
+  bucket = aws_s3_bucket.response_bucket.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"] # In production, replace with your specific domain
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
 # DynamoDB table for storing user information and translation history
 resource "aws_dynamodb_table" "user_data" {
   name         = "${var.project_name}-user-data"
@@ -561,7 +587,7 @@ resource "aws_iam_role" "authenticated_role" {
   }
 }
 
-# IAM policy for authenticated users
+# IAM policy for authenticated users - FIXED interpolation issue
 resource "aws_iam_policy" "authenticated_policy" {
   name        = "${var.project_name}-authenticated-policy-${random_string.suffix.result}"
   description = "Policy for authenticated users"
@@ -573,12 +599,28 @@ resource "aws_iam_policy" "authenticated_policy" {
         Effect = "Allow"
         Action = [
           "s3:PutObject",
-          "s3:GetObject"
+          "s3:GetObject",
+          "s3:DeleteObject"
         ]
         Resource = [
           "${aws_s3_bucket.request_bucket.arn}/*",
           "${aws_s3_bucket.response_bucket.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.request_bucket.arn,
+          aws_s3_bucket.response_bucket.arn
+        ]
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["public/*", "private/$${cognito-identity.amazonaws.com:sub}/*"]
+          }
+        }
       },
       {
         Effect = "Allow"

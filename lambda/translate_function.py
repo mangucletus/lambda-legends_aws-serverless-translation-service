@@ -1,6 +1,6 @@
 # lambda/translate_function.py
 # AWS Lambda function for handling translation requests using AWS Translate service
-# Updated with improved S3 bucket management and response formatting
+# FIXED VERSION - Ensures proper response format for frontend
 
 import json
 import boto3
@@ -120,22 +120,25 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
         request_data = parse_request_body(event)
         if not request_data:
             return create_error_response(400, "Request body is required")
-            
+        
         # Validate request data
         validation_result = validate_translation_request(request_data)
         if not validation_result['valid']:
             logger.error(f"Validation failed: {validation_result['error']}")
             return create_error_response(400, validation_result['error'])
-            
+        
         # Extract user information
         user_id = extract_user_id(event)
         
         # Generate unique ID for this request
         translation_id = str(uuid.uuid4())
         
-        # Save request to Request S3 Bucket
-        request_key = f"api-request-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{translation_id}.json"
-        save_request_to_s3(request_key, request_data, user_id, 'api')
+        # Save request to Request S3 Bucket (optional - don't fail if it doesn't work)
+        try:
+            request_key = f"api-request-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{translation_id}.json"
+            save_request_to_s3(request_key, request_data, user_id, 'api')
+        except Exception as s3_error:
+            logger.warning(f"Failed to save request to S3: {s3_error}")
         
         # Perform translation
         logger.info("Starting translation process")
@@ -148,7 +151,7 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
         translation_result['processing_time'] = processing_time
         translation_result['user_id'] = user_id
         
-        # Save metadata to DynamoDB
+        # Save metadata to DynamoDB (optional)
         try:
             metadata = {
                 'user_id': user_id,
@@ -156,40 +159,31 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
                 'target_language': request_data['target_language'],
                 'request_type': 'api',
                 'text_count': len(request_data['texts']),
-                'success_count': len([t for t in translation_result.get('translations', []) if t.get('status') == 'success']),
+                'success_count': translation_result['request_metadata']['successful_translations'],
                 'processing_time': processing_time
             }
             save_translation_metadata(translation_id, metadata)
             
             # Save user history
             if user_id != 'anonymous':
-                translation_data = {
-                    'translation_id': translation_id,
-                    'source_language': request_data['source_language'],
-                    'target_language': request_data['target_language'],
-                    'translations': translation_result.get('translations', [])
-                }
-                save_user_translation_history(user_id, translation_data)
+                save_user_translation_history(user_id, translation_result)
         except Exception as e:
             logger.warning(f"Failed to save metadata: {str(e)}")
         
-        # Save result to Response S3 Bucket
-        response_key = f"api-response-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{translation_id}.json"
-        save_translation_result(response_key, translation_result, request_data)
+        # Save result to Response S3 Bucket (optional)
+        try:
+            response_key = f"api-response-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{translation_id}.json"
+            save_translation_result(response_key, translation_result, request_data)
+        except Exception as s3_error:
+            logger.warning(f"Failed to save response to S3: {s3_error}")
         
         logger.info("Translation completed successfully")
         
+        # Return the translation result directly in the expected format
         return {
             'statusCode': 200,
             'headers': get_cors_headers(),
-            'body': json.dumps({
-                'message': 'Translation completed successfully',
-                'translation_id': translation_id,
-                'translation_result': translation_result,
-                'processing_time': processing_time,
-                'request_saved_to': f"s3://{REQUEST_BUCKET}/{request_key}",
-                'response_saved_to': f"s3://{RESPONSE_BUCKET}/{response_key}"
-            }, default=str)
+            'body': json.dumps(translation_result, default=str)
         }
         
     except Exception as e:
@@ -222,21 +216,21 @@ def handle_s3_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if bucket != REQUEST_BUCKET:
                 logger.warning(f"File from unexpected bucket: {bucket}")
                 continue
-                
+            
             # Process only JSON files
             if not key.lower().endswith('.json'):
                 logger.info(f"Skipping non-JSON file: {key}")
                 continue
-                
+            
             # Skip files that are already processed (to avoid infinite loop)
             if key.startswith('api-request-') or key.startswith('file-request-'):
                 logger.info(f"Skipping already processed file: {key}")
                 continue
-                
+            
             # Download and process the file
             result = process_s3_file(bucket, key)
             processed_files.append(result)
-            
+        
         return {
             'statusCode': 200,
             'body': json.dumps({
@@ -263,7 +257,7 @@ def parse_request_body(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     try:
         if not event.get('body'):
             return None
-            
+        
         body = event['body']
         if event.get('isBase64Encoded'):
             import base64
@@ -321,7 +315,7 @@ def save_request_to_s3(key: str, request_data: Dict[str, Any], user_id: str, req
         if not REQUEST_BUCKET:
             logger.warning("Request bucket not configured")
             return
-            
+        
         # Prepare the request object with metadata
         request_object = {
             'request_data': request_data,
@@ -358,6 +352,7 @@ def save_request_to_s3(key: str, request_data: Dict[str, Any], user_id: str, req
         
     except Exception as e:
         logger.error(f"Error saving request to S3: {str(e)}")
+        raise
 
 
 def process_s3_file(bucket: str, key: str) -> Dict[str, Any]:
@@ -393,7 +388,7 @@ def process_s3_file(bucket: str, key: str) -> Dict[str, Any]:
         validation_result = validate_translation_request(request_data)
         if not validation_result['valid']:
             raise ValueError(validation_result['error'])
-            
+        
         # Perform translation
         translation_result = perform_translation(request_data)
         
@@ -412,20 +407,14 @@ def process_s3_file(bucket: str, key: str) -> Dict[str, Any]:
             'request_type': 'file',
             'file_name': key,
             'text_count': len(request_data['texts']),
-            'success_count': len([t for t in translation_result.get('translations', []) if t.get('status') == 'success']),
+            'success_count': translation_result['request_metadata']['successful_translations'],
             'processing_time': processing_time
         }
         save_translation_metadata(translation_id, metadata)
         
         # Save user history
         if user_id != 'anonymous':
-            translation_data = {
-                'translation_id': translation_id,
-                'source_language': request_data['source_language'],
-                'target_language': request_data['target_language'],
-                'translations': translation_result.get('translations', [])
-            }
-            save_user_translation_history(user_id, translation_data)
+            save_user_translation_history(user_id, translation_result)
         
         # Add translation ID to result
         translation_result['translation_id'] = translation_id
@@ -486,7 +475,7 @@ def perform_translation(request_data: Dict[str, Any]) -> Dict[str, Any]:
                     'reason': 'empty_text'
                 })
                 continue
-                
+            
             try:
                 # Call AWS Translate
                 response = translate_client.translate_text(
@@ -520,7 +509,7 @@ def perform_translation(request_data: Dict[str, Any]) -> Dict[str, Any]:
                     'status': 'error',
                     'error': str(e)
                 })
-                
+        
         # Calculate proper statistics
         total_texts = len(texts)
         success_rate = round((successful_count / total_texts * 100), 2) if total_texts > 0 else 0
@@ -564,14 +553,14 @@ def save_translation_result(file_key: str, translation_result: Dict[str, Any],
         if not RESPONSE_BUCKET:
             logger.warning("Response bucket not configured")
             return
-            
+        
         # Prepare the complete result object
         complete_result = {
             'original_request': original_request,
             'translation_result': translation_result,
             'metadata': {
                 'processed_at': datetime.now().isoformat(),
-                'lambda_request_id': '',  # Will be set in the context if available
+                'lambda_request_id': '', # Will be set in the context if available
                 'version': '1.0',
                 'buckets': {
                     'request_bucket': REQUEST_BUCKET,
@@ -604,6 +593,7 @@ def save_translation_result(file_key: str, translation_result: Dict[str, Any],
         
     except Exception as e:
         logger.error(f"Error saving translation result: {str(e)}")
+        raise
 
 
 def validate_translation_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -626,32 +616,32 @@ def validate_translation_request(request_data: Dict[str, Any]) -> Dict[str, Any]
         for field in required_fields:
             if field not in request_data:
                 return {'valid': False, 'error': f"Missing required field: {field}"}
-                
+        
         # Validate language codes
         source_lang = request_data['source_language']
         target_lang = request_data['target_language']
         
         if source_lang not in SUPPORTED_LANGUAGES:
             return {'valid': False, 'error': f"Unsupported source language: {source_lang}"}
-            
+        
         if target_lang not in SUPPORTED_LANGUAGES:
             return {'valid': False, 'error': f"Unsupported target language: {target_lang}"}
-            
+        
         # Validate texts field
         texts = request_data['texts']
         if not isinstance(texts, list):
             return {'valid': False, 'error': "Field 'texts' must be a list"}
-            
+        
         if not texts:
             return {'valid': False, 'error': "Field 'texts' cannot be empty"}
-            
+        
         # Check text length limits (AWS Translate has a 5000 byte limit per request)
         for i, text in enumerate(texts):
             if not isinstance(text, str):
                 return {'valid': False, 'error': f"Text at index {i} must be a string"}
             if len(text.encode('utf-8')) > 5000:
                 return {'valid': False, 'error': f"Text at index {i} exceeds 5000 bytes limit"}
-                
+        
         return {'valid': True, 'error': None}
         
     except Exception as e:
@@ -671,7 +661,7 @@ def save_user_translation_history(user_id: str, translation_data: Dict[str, Any]
         if not user_data_table:
             logger.warning("User data table not configured")
             return
-            
+        
         timestamp = datetime.now().isoformat()
         ttl = int((datetime.now() + timedelta(days=365)).timestamp())  # Keep for 1 year
         
@@ -681,10 +671,10 @@ def save_user_translation_history(user_id: str, translation_data: Dict[str, Any]
                 'user_id': user_id,
                 'timestamp': timestamp,
                 'translation_id': translation_data.get('translation_id', str(uuid.uuid4())),
-                'source_language': translation_data.get('source_language'),
-                'target_language': translation_data.get('target_language'),
+                'source_language': translation_data.get('request_metadata', {}).get('source_language'),
+                'target_language': translation_data.get('request_metadata', {}).get('target_language'),
                 'text_count': len(translation_data.get('translations', [])),
-                'success_count': len([t for t in translation_data.get('translations', []) if t.get('status') == 'success']),
+                'success_count': translation_data.get('request_metadata', {}).get('successful_translations', 0),
                 'created_at': timestamp,
                 'ttl': ttl
             }
@@ -708,7 +698,7 @@ def save_translation_metadata(translation_id: str, metadata: Dict[str, Any]) -> 
         if not translation_table:
             logger.warning("Translation table not configured")
             return
-            
+        
         timestamp = datetime.now().isoformat()
         ttl = int((datetime.now() + timedelta(days=90)).timestamp())  # Keep for 90 days
         
@@ -787,7 +777,7 @@ def handle_direct_invocation(event: Dict[str, Any], context: Any) -> Dict[str, A
         validation_result = validate_translation_request(event)
         if not validation_result['valid']:
             return create_error_response(400, validation_result['error'])
-            
+        
         # Perform translation
         translation_result = perform_translation(event)
         

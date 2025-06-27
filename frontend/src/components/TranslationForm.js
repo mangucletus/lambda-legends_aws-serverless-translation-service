@@ -1,5 +1,5 @@
 // frontend/src/components/TranslationForm.js
-// FIXED VERSION - Handles S3 failures gracefully and ensures translations display
+// FIXED VERSION - Simplified response processing and improved translation display
 
 import React, { useState, useRef } from 'react';
 import { uploadData } from 'aws-amplify/storage';
@@ -32,43 +32,36 @@ const TranslationForm = ({ user }) => {
     }, 5000);
   };
 
-  // ENHANCED: Process API response with better error handling
+  // SIMPLIFIED: Process API response with direct extraction
   const processApiResponse = (response, originalTexts) => {
     console.log('🔍 PROCESSING RESPONSE:', JSON.stringify(response, null, 2));
 
     try {
-      let translationData = null;
-
-      // Try to extract translation data from various response formats
-      if (response.response) {
-        // If response is wrapped in a 'response' property
-        translationData = response.response;
-      } else if (response.body) {
-        // If response has a body property (API Gateway response)
+      // Extract the core response data
+      let translationData = response;
+      
+      // Handle different response formats
+      if (response.body) {
         try {
           translationData = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
         } catch (e) {
           console.log('Failed to parse response.body:', e);
-          translationData = response;
         }
-      } else {
-        // Direct response
-        translationData = response;
       }
 
-      console.log('📋 Translation data extracted:', translationData);
+      console.log('📋 Extracted translation data:', translationData);
 
-      // Extract translations from various possible locations
+      // Look for translations in the expected locations
       let translations = [];
       
       if (translationData?.translation_result?.translations) {
         translations = translationData.translation_result.translations;
       } else if (translationData?.translations) {
         translations = translationData.translations;
-      } else if (translationData?.TranslatedText) {
-        // Direct AWS Translate response
+      } else if (translationData?.TranslatedText && originalTexts.length === 1) {
+        // Direct AWS Translate response format
         translations = [{
-          original_text: originalTexts[0] || textInput,
+          original_text: originalTexts[0],
           translated_text: translationData.TranslatedText,
           index: 0,
           status: 'success',
@@ -77,34 +70,31 @@ const TranslationForm = ({ user }) => {
         }];
       }
 
-      // If no translations found, create a proper error response
+      // If no translations found, create error entries
       if (!translations || translations.length === 0) {
-        console.warn('⚠️ No translations found in response, creating fallback');
-        
-        // Check if there's an error message
-        const errorMessage = translationData?.error || translationData?.message || 'Translation service returned empty result';
-        
+        console.warn('⚠️ No translations found, creating error entries');
         translations = originalTexts.map((text, index) => ({
           original_text: text,
           translated_text: null,
           index: index,
           status: 'error',
-          error: errorMessage
+          error: 'No translation received from service'
         }));
       }
 
-      // Calculate statistics
+      // Calculate stats
       const successfulTranslations = translations.filter(t => t.status === 'success' && t.translated_text);
       const successCount = successfulTranslations.length;
-      const failedCount = translations.length - successCount;
+      const totalCount = translations.length;
+      const failedCount = totalCount - successCount;
+      const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 0;
       const totalCharacters = successfulTranslations.reduce((sum, t) => sum + (t.translated_text?.length || 0), 0);
-      const successRate = translations.length > 0 ? Math.round((successCount / translations.length) * 100) : 0;
 
-      const finalResult = {
+      const result = {
         request_metadata: {
           source_language: sourceLanguage,
           target_language: targetLanguage,
-          total_texts: translations.length,
+          total_texts: totalCount,
           successful_translations: successCount,
           failed_translations: failedCount,
           timestamp: new Date().toISOString()
@@ -116,8 +106,8 @@ const TranslationForm = ({ user }) => {
         }
       };
 
-      console.log('✅ FINAL PROCESSED RESULT:', finalResult);
-      return finalResult;
+      console.log('✅ FINAL PROCESSED RESULT:', result);
+      return result;
 
     } catch (error) {
       console.error('❌ Error processing response:', error);
@@ -147,7 +137,7 @@ const TranslationForm = ({ user }) => {
     }
   };
 
-  // Handle text translation with better error handling
+  // Handle text translation
   const handleTextTranslation = async () => {
     if (!textInput.trim()) {
       setError('Please enter some text to translate');
@@ -173,9 +163,9 @@ const TranslationForm = ({ user }) => {
 
       console.log('📤 Sending translation request:', translationRequest);
 
-      // Try to save request to S3, but don't fail if it doesn't work
+      // Try to save request to S3 (optional, don't fail if it doesn't work)
       try {
-        const requestFileName = `text-request-${Date.now()}-${user?.userId || 'anonymous'}.json`;
+        const requestFileName = `text-request-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
         await uploadData({
           path: `public/${requestFileName}`,
           data: JSON.stringify(translationRequest, null, 2),
@@ -192,7 +182,6 @@ const TranslationForm = ({ user }) => {
         console.log('✅ Request saved to S3:', requestFileName);
       } catch (s3Error) {
         console.warn('⚠️ Failed to save request to S3 (continuing with translation):', s3Error);
-        // Continue with translation even if S3 upload fails
       }
 
       // Call the API Gateway endpoint
@@ -213,7 +202,7 @@ const TranslationForm = ({ user }) => {
       // Process the response
       const translationResult = processApiResponse(response, textsArray);
 
-      // Always set the results, even if some translations failed
+      // Set the results for display
       setTranslationResults(translationResult);
 
       const successCount = translationResult.request_metadata?.successful_translations || 0;
@@ -230,7 +219,6 @@ const TranslationForm = ({ user }) => {
     } catch (error) {
       console.error('❌ Translation error:', error);
 
-      // Create a user-friendly error message
       let errorMessage = 'Translation failed: ';
       if (error.response?.body) {
         try {
@@ -243,7 +231,7 @@ const TranslationForm = ({ user }) => {
         errorMessage += error.message || 'Network error - please check your connection';
       }
 
-      // Still try to show something to the user
+      // Still show error result to user
       const texts = textInput.split('\n').filter(line => line.trim());
       const errorResult = {
         request_metadata: {
@@ -301,10 +289,9 @@ const TranslationForm = ({ user }) => {
         throw new Error('Invalid file format. Required fields: source_language, target_language, texts');
       }
 
-      // Try to upload file to S3, but don't fail if it doesn't work
+      // Try to upload file to S3 (optional)
       try {
         const fileName = `file-request-${Date.now()}-${file.name}`;
-
         await uploadData({
           path: `public/${fileName}`,
           data: file,
@@ -318,17 +305,16 @@ const TranslationForm = ({ user }) => {
             }
           }
         }).result;
-
         console.log('✅ File saved to S3:', fileName);
       } catch (s3Error) {
         console.warn('⚠️ Failed to save file to S3 (continuing with translation):', s3Error);
       }
 
-      setSuccess(`File processed! Starting translation...`);
-
-      // Set languages from file
+      // Update form languages from file
       setSourceLanguage(requestData.source_language);
       setTargetLanguage(requestData.target_language);
+
+      setSuccess(`File processed! Starting translation...`);
 
       // Process via API
       const response = await post({
@@ -456,17 +442,17 @@ const TranslationForm = ({ user }) => {
     }
   };
 
-  // Copy all translations to clipboard
+  // Copy all successful translations to clipboard
   const copyAllTranslations = () => {
     if (!translationResults?.translations) return;
 
-    const allTranslations = translationResults.translations
+    const successfulTranslations = translationResults.translations
       .filter(t => t.status === 'success' && t.translated_text)
       .map(t => t.translated_text)
       .join('\n');
 
-    if (allTranslations) {
-      copyToClipboard(allTranslations);
+    if (successfulTranslations) {
+      copyToClipboard(successfulTranslations);
     } else {
       setError('No successful translations to copy');
       clearMessages();
@@ -689,15 +675,15 @@ const TranslationForm = ({ user }) => {
       {translationResults && (
         <div className="results-section">
           <div className="results-header">
-            <h3>Translation Results</h3>
+            <h3>🎯 Translation Results</h3>
             <div className="results-actions">
               {translationResults.summary?.success_rate > 0 && (
                 <button onClick={copyAllTranslations} className="action-button copy-all">
-                  Copy All
+                  📋 Copy All
                 </button>
               )}
               <button onClick={downloadResults} className="action-button download">
-                Download JSON
+                💾 Download JSON
               </button>
             </div>
           </div>
@@ -734,9 +720,9 @@ const TranslationForm = ({ user }) => {
             </div>
           )}
 
-          {/* MAIN TRANSLATION DISPLAY - Always Shows Results */}
+          {/* MAIN TRANSLATION DISPLAY - Fixed and Enhanced */}
           <div className="main-translation-display">
-            <h4>Your Translations</h4>
+            <h4>✨ Your Translations</h4>
 
             {translationResults.translations && translationResults.translations.length > 0 ? (
               <div className="translated-texts-container">
@@ -747,16 +733,16 @@ const TranslationForm = ({ user }) => {
                         <div className="translation-pair">
                           <div className="original-text-section">
                             <div className="language-label">
-                              {SUPPORTED_LANGUAGES[sourceLanguage] || sourceLanguage}
+                              📝 {SUPPORTED_LANGUAGES[sourceLanguage] || sourceLanguage}
                             </div>
                             <div className="text-content original">
                               {translation.original_text}
                             </div>
                           </div>
-                          <div className="arrow-divider">→</div>
+                          <div className="arrow-divider">➜</div>
                           <div className="translated-text-section">
                             <div className="language-label">
-                              {SUPPORTED_LANGUAGES[targetLanguage] || targetLanguage}
+                              🌍 {SUPPORTED_LANGUAGES[targetLanguage] || targetLanguage}
                             </div>
                             <div className="text-content translated">
                               <span className="translated-text-value">
@@ -767,7 +753,7 @@ const TranslationForm = ({ user }) => {
                                 className="copy-button"
                                 title="Copy translation"
                               >
-                                Copy
+                                📋 Copy
                               </button>
                             </div>
                           </div>
@@ -777,10 +763,10 @@ const TranslationForm = ({ user }) => {
                       <div className="translation-error-item">
                         <div className="error-content">
                           <div className="error-original">
-                            <strong>Original:</strong> {translation.original_text}
+                            <strong>❌ Original:</strong> {translation.original_text}
                           </div>
                           <div className="error-message">
-                            <strong>Error:</strong> {translation.error || 'Translation failed'}
+                            <strong>🔥 Error:</strong> {translation.error || 'Translation failed'}
                           </div>
                         </div>
                       </div>
@@ -790,8 +776,8 @@ const TranslationForm = ({ user }) => {
               </div>
             ) : (
               <div className="no-translations">
-                <p>No translations found in the response.</p>
-                <p>Please try again with different input.</p>
+                <p>🚫 No translations found in the response.</p>
+                <p>💡 Please try again with different input.</p>
               </div>
             )}
           </div>
@@ -801,11 +787,11 @@ const TranslationForm = ({ user }) => {
             <div className="results-footer">
               <div className="results-metadata">
                 <p>
-                  <strong>Language Pair:</strong> {SUPPORTED_LANGUAGES[sourceLanguage]} → {SUPPORTED_LANGUAGES[targetLanguage]}
+                  <strong>🔄 Language Pair:</strong> {SUPPORTED_LANGUAGES[sourceLanguage]} → {SUPPORTED_LANGUAGES[targetLanguage]}
                 </p>
                 {translationResults.request_metadata.timestamp && (
                   <p>
-                    <strong>Completed:</strong> {new Date(translationResults.request_metadata.timestamp).toLocaleString()}
+                    <strong>⏰ Completed:</strong> {new Date(translationResults.request_metadata.timestamp).toLocaleString()}
                   </p>
                 )}
               </div>

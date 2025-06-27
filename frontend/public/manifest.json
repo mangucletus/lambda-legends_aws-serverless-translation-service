@@ -1,0 +1,57 @@
+{
+    "short_name": "AWS Translate",
+    "name": "AWS Translate Application",
+    "description": "Translate text between multiple languages using AWS services",
+    "icons": [
+      {
+        "src": "favicon.ico",
+        "sizes": "64x64 32x32 24x24 16x16",
+        "type": "image/x-icon"
+      },
+      {
+        "src": "logo192.png",
+        "type": "image/png",
+        "sizes": "192x192"
+      },
+      {
+        "src": "logo512.png",
+        "type": "image/png",
+        "sizes": "512x512"
+      }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#0073bb",
+    "background_color": "#ffffff",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "lang": "en",
+    "categories": ["productivity", "utilities", "education"],
+    "shortcuts": [
+      {
+        "name": "Text Translation",
+        "short_name": "Text",
+        "description": "Translate text directly",
+        "url": "/?tab=text",
+        "icons": [
+          {
+            "src": "logo192.png",
+            "sizes": "192x192"
+          }
+        ]
+      },
+      {
+        "name": "File Upload",
+        "short_name": "File",
+        "description": "Upload JSON file for translation",
+        "url": "/?tab=file",
+        "icons": [
+          {
+            "src": "logo192.png",
+            "sizes": "192x192"
+          }
+        ]
+      }
+    ],
+    "prefer_related_applications": false
+  }

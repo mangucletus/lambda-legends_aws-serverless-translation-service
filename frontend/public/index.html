@@ -5,10 +5,10 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#0073bb" />
     <meta name="description"
         content="AWS Translate Application - Translate text between multiple languages using AWS services" />
-    <meta name="author" content="AWS Translate App" />
+    <meta name="author" content="AWS Translate App - Team Lambda Legends" />
     <meta name="keywords" content="translation, AWS, multilingual, language, translate" />
 
     <!-- Open Graph / Facebook -->
@@ -16,14 +16,14 @@
     <meta property="og:url" content="%PUBLIC_URL%" />
     <meta property="og:title" content="AWS Translate Application" />
     <meta property="og:description" content="Translate text between multiple languages using AWS services" />
-    <meta property="og:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="%PUBLIC_URL%" />
     <meta property="twitter:title" content="AWS Translate Application" />
     <meta property="twitter:description" content="Translate text between multiple languages using AWS services" />
-    <meta property="twitter:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta property="twitter:image" content="%PUBLIC_URL%/logo512.png" />
 
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
@@ -164,21 +164,36 @@
         // Error handling for unhandled JavaScript errors
         window.addEventListener('error', function (event) {
             console.error('Application error:', event.error);
-            // You could send this to a logging service
         });
 
-        // Service worker registration for PWA capabilities (optional)
-        if ('serviceWorker' in navigator) {
+        // FIXED: Service worker registration with better error handling
+        if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('/service-worker.js')
+                // Try to register service worker, but handle MIME type errors gracefully
+                navigator.serviceWorker.register('/service-worker.js', {
+                    scope: '/'
+                })
                     .then(function (registration) {
-                        console.log('SW registered: ', registration);
+                        console.log('✅ SW registered successfully:', registration);
                     })
                     .catch(function (registrationError) {
-                        console.log('SW registration failed: ', registrationError);
+                        // Log the error but don't break the application
+                        console.warn('⚠️ SW registration failed (this is not critical):', registrationError.message);
+
+                        // Check if it's a MIME type error and provide helpful info
+                        if (registrationError.message.includes('MIME type') || registrationError.message.includes('text/html')) {
+                            console.info('💡 Service worker MIME type issue detected. This may be due to CloudFront configuration. The app will work fine without service worker.');
+                        }
                     });
             });
+        } else {
+            console.log('🔧 Service worker not available or running in development mode');
         }
+
+        // Provide fallback functionality if service worker fails
+        window.swRegistrationFailed = function () {
+            console.log('🔄 App running without service worker - all functionality still available');
+        };
     </script>
 </body>
 

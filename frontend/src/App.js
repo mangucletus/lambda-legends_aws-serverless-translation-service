@@ -1,5 +1,5 @@
 // frontend/src/App.js
-// Main React application component using Amplify's Authenticator wrapper
+// Main React application component with FIXED authentication form fields
 
 import React from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
@@ -91,23 +91,29 @@ function App() {
           },
         },
         signUp: {
-          username: {
+          preferred_username: {
+            placeholder: 'Choose a username',
+            label: 'Username',
+            isRequired: true,
+            order: 1,
+          },
+          email: {
             placeholder: 'Enter your email address',
             label: 'Email Address',
             isRequired: true,
-            order: 1,
+            order: 2,
           },
           password: {
             placeholder: 'Create a password (min 8 characters)',
             label: 'Password',
             isRequired: true,
-            order: 2,
+            order: 3,
           },
           confirm_password: {
             placeholder: 'Confirm your password',
             label: 'Confirm Password',
             isRequired: true,
-            order: 3,
+            order: 4,
           },
         },
       }}

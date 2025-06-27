@@ -1,5 +1,5 @@
 # infrastructure/main.tf
-# Main Terraform configuration with improved state management
+# Main Terraform configuration with FIXED CloudFront MIME type handling
 
 terraform {
   required_version = ">= 1.0"
@@ -48,10 +48,6 @@ resource "aws_s3_bucket" "request_bucket" {
     Environment = var.environment
     Project     = var.project_name
   }
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
 }
 
 # S3 Bucket for storing translation responses
@@ -63,10 +59,6 @@ resource "aws_s3_bucket" "response_bucket" {
     Environment = var.environment
     Project     = var.project_name
   }
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
 }
 
 # S3 Bucket for hosting the React frontend
@@ -78,10 +70,6 @@ resource "aws_s3_bucket" "frontend_bucket" {
     Environment = var.environment
     Project     = var.project_name
   }
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
 }
 
 # Configure S3 bucket versioning for request bucket
@@ -228,10 +216,6 @@ resource "aws_dynamodb_table" "user_data" {
     Environment = var.environment
     Project     = var.project_name
   }
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
 }
 
 # DynamoDB table for storing translation metadata
@@ -272,10 +256,6 @@ resource "aws_dynamodb_table" "translation_metadata" {
     Environment = var.environment
     Project     = var.project_name
   }
-
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
 }
 
 # IAM role for Lambda function
@@ -355,10 +335,6 @@ resource "aws_iam_policy" "lambda_policy" {
       }
     ]
   })
-
-  # lifecycle {
-  #   create_before_destroy = true
-  # }
 }
 
 # Separate IAM policy for DynamoDB access
@@ -388,10 +364,6 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
       }
     ]
   })
-
-  # lifecycle {
-  #   create_before_destroy = true
-  # }
 }
 
 # Attach policy to Lambda role
@@ -484,7 +456,7 @@ resource "aws_s3_bucket_notification" "request_bucket_notification" {
   depends_on = [aws_lambda_permission.allow_bucket]
 }
 
-# Cognito User Pool for authentication
+# Cognito User Pool for authentication - FIXED with username attributes
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 
@@ -499,6 +471,9 @@ resource "aws_cognito_user_pool" "main" {
   auto_verified_attributes = ["email"]
   username_attributes      = ["email"]
 
+  # FIXED: Allow both username and email for sign in
+  alias_attributes = ["email", "preferred_username"]
+
   account_recovery_setting {
     recovery_mechanism {
       name     = "verified_email"
@@ -512,6 +487,21 @@ resource "aws_cognito_user_pool" "main" {
 
   user_pool_add_ons {
     advanced_security_mode = "OFF"
+  }
+
+  # FIXED: Schema to support username field
+  schema {
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable             = true
+  }
+
+  schema {
+    name                = "preferred_username"
+    attribute_data_type = "String"
+    required            = false
+    mutable             = true
   }
 
   tags = {
@@ -802,10 +792,6 @@ resource "aws_api_gateway_deployment" "translate_deployment" {
       aws_api_gateway_integration.translate_options_integration.id
     ]))
   }
-
-  # lifecycle {
-  #   create_before_destroy = true
-  # }
 }
 
 # API Gateway stage
@@ -830,7 +816,7 @@ resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   signing_protocol                  = "sigv4"
 }
 
-# CloudFront distribution for React frontend
+# FIXED: CloudFront distribution with proper MIME type handling
 resource "aws_cloudfront_distribution" "frontend_distribution" {
   origin {
     domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
@@ -861,6 +847,29 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     max_ttl     = 86400
   }
 
+  # FIXED: Special cache behavior for service worker with correct MIME type
+  ordered_cache_behavior {
+    path_pattern           = "/service-worker.js"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-${aws_s3_bucket.frontend_bucket.bucket}"
+    compress               = false
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+      headers = ["Content-Type"]
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 300 # Cache for 5 minutes only
+  }
+
+  # Cache behavior for static assets
   ordered_cache_behavior {
     path_pattern           = "/static/*"
     allowed_methods        = ["GET", "HEAD"]
@@ -879,6 +888,28 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     min_ttl     = 86400
     default_ttl = 86400
     max_ttl     = 31536000
+  }
+
+  # Cache behavior for manifest.json and other PWA files
+  ordered_cache_behavior {
+    path_pattern           = "/manifest.json"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "S3-${aws_s3_bucket.frontend_bucket.bucket}"
+    compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+      headers = ["Content-Type"]
+    }
+
+    min_ttl     = 0
+    default_ttl = 3600
+    max_ttl     = 86400
   }
 
   price_class = "PriceClass_100"

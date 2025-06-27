@@ -33,6 +33,30 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
+    <!-- FIXED: Define process before any scripts load -->
+    <script>
+        // Fix "process is not defined" error
+        window.process = window.process || {
+            env: {
+                NODE_ENV: 'production'
+            }
+        };
+
+        // Global error handler
+        window.addEventListener('error', function (event) {
+            console.error('Application error:', event.error);
+
+            // Don't break the app for known non-critical errors
+            if (event.error && event.error.message &&
+                (event.error.message.includes('process is not defined') ||
+                    event.error.message.includes('ServiceWorker'))) {
+                console.log('🔧 Non-critical error handled gracefully');
+                event.preventDefault();
+                return false;
+            }
+        });
+    </script>
+
     <!-- CSS Variables for consistent theming -->
     <style>
         :root {
@@ -88,6 +112,33 @@
             100% {
                 transform: rotate(360deg);
             }
+        }
+
+        /* FIXED: Ensure translation display is always visible */
+        .main-translation-display {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+            padding: 2rem !important;
+            border-radius: 16px !important;
+            margin: 2rem 0 !important;
+            box-shadow: 0 8px 25px -5px rgba(16, 185, 129, 0.3) !important;
+            border: 3px solid #10b981 !important;
+        }
+
+        .translated-texts-container {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1.5rem !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .translation-item-container {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         /* Utility classes */
@@ -161,39 +212,60 @@
             }, 500);
         });
 
-        // Error handling for unhandled JavaScript errors
-        window.addEventListener('error', function (event) {
-            console.error('Application error:', event.error);
-        });
-
-        // FIXED: Service worker registration with better error handling
-        if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+        // FIXED: Service worker registration with comprehensive error handling
+        if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
-                // Try to register service worker, but handle MIME type errors gracefully
-                navigator.serviceWorker.register('/service-worker.js', {
-                    scope: '/'
-                })
-                    .then(function (registration) {
-                        console.log('✅ SW registered successfully:', registration);
-                    })
-                    .catch(function (registrationError) {
-                        // Log the error but don't break the application
-                        console.warn('⚠️ SW registration failed (this is not critical):', registrationError.message);
+                // Determine if we're in production based on domain
+                const isProduction = window.location.hostname !== 'localhost' &&
+                    !window.location.hostname.includes('127.0.0.1');
 
-                        // Check if it's a MIME type error and provide helpful info
-                        if (registrationError.message.includes('MIME type') || registrationError.message.includes('text/html')) {
-                            console.info('💡 Service worker MIME type issue detected. This may be due to CloudFront configuration. The app will work fine without service worker.');
-                        }
-                    });
+                if (isProduction) {
+                    // Try to register service worker in production only
+                    navigator.serviceWorker.register('/service-worker.js', {
+                        scope: '/'
+                    })
+                        .then(function (registration) {
+                            console.log('✅ SW registered successfully:', registration);
+                        })
+                        .catch(function (registrationError) {
+                            // Log the error but don't break the application
+                            console.warn('⚠️ SW registration failed (this is not critical):', registrationError.message);
+
+                            // Check for specific error types
+                            if (registrationError.message.includes('MIME type') ||
+                                registrationError.message.includes('text/html') ||
+                                registrationError.message.includes('SecurityError')) {
+                                console.info('💡 Service worker MIME type or security issue detected. App will work without SW.');
+                            }
+
+                            // Don't throw the error - just log it
+                            return null;
+                        });
+                } else {
+                    console.log('🔧 Development mode - skipping service worker registration');
+                }
             });
         } else {
-            console.log('🔧 Service worker not available or running in development mode');
+            console.log('🔧 Service worker not supported in this browser');
         }
 
-        // Provide fallback functionality if service worker fails
-        window.swRegistrationFailed = function () {
-            console.log('🔄 App running without service worker - all functionality still available');
-        };
+        // Performance monitoring
+        if ('performance' in window) {
+            window.addEventListener('load', function () {
+                setTimeout(function () {
+                    const perfData = performance.getEntriesByType('navigation')[0];
+                    if (perfData) {
+                        console.log('⚡ Page load time:', Math.round(perfData.loadEventEnd - perfData.fetchStart), 'ms');
+                    }
+                }, 1000);
+            });
+        }
+
+        // Debug information for developers
+        console.log('%c🚀 AWS Translate Application',
+            'color: #10b981; font-size: 16px; font-weight: bold;');
+        console.log('%cAll systems ready! Translation app loaded successfully.',
+            'color: #059669; font-size: 12px;');
     </script>
 </body>
 

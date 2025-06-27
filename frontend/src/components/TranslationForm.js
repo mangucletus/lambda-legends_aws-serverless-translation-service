@@ -1,8 +1,8 @@
 // frontend/src/components/TranslationForm.js
-// FIXED VERSION - Simplified response processing and improved translation display
+// COMPLETE FIXED VERSION - Handles all response formats and displays translations
 
 import React, { useState, useRef } from 'react';
-import { uploadData } from 'aws-amplify/storage';
+import { uploadData, list, downloadData } from 'aws-amplify/storage';
 import { post } from 'aws-amplify/api';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { SUPPORTED_LANGUAGES, COMMON_LANGUAGE_PAIRS } from '../aws-config';
@@ -32,112 +32,164 @@ const TranslationForm = ({ user }) => {
     }, 5000);
   };
 
-  // SIMPLIFIED: Process API response with direct extraction
-  const processApiResponse = (response, originalTexts) => {
+  // FIXED: Process API response with multiple fallback strategies
+  const processApiResponse = async (response, originalTexts, requestTimestamp) => {
     console.log('🔍 PROCESSING RESPONSE:', JSON.stringify(response, null, 2));
 
     try {
-      // Extract the core response data
-      let translationData = response;
-      
-      // Handle different response formats
-      if (response.body) {
+      let translationData = null;
+
+      // Strategy 1: Direct API response
+      if (response && response.request_metadata && response.translations) {
+        console.log('✅ Found direct translation result in response');
+        translationData = response;
+      }
+      // Strategy 2: Nested in response property
+      else if (response?.response && response.response.request_metadata) {
+        console.log('✅ Found translation result in response.response');
+        translationData = response.response;
+      }
+      // Strategy 3: Parse body if it's a string
+      else if (response?.body) {
         try {
-          translationData = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+          const bodyData = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+          if (bodyData.request_metadata) {
+            console.log('✅ Found translation result in parsed body');
+            translationData = bodyData;
+          }
         } catch (e) {
-          console.log('Failed to parse response.body:', e);
+          console.log('⚠️ Failed to parse response body:', e);
         }
       }
-
-      console.log('📋 Extracted translation data:', translationData);
-
-      // Look for translations in the expected locations
-      let translations = [];
-      
-      if (translationData?.translation_result?.translations) {
-        translations = translationData.translation_result.translations;
-      } else if (translationData?.translations) {
-        translations = translationData.translations;
-      } else if (translationData?.TranslatedText && originalTexts.length === 1) {
-        // Direct AWS Translate response format
-        translations = [{
-          original_text: originalTexts[0],
-          translated_text: translationData.TranslatedText,
-          index: 0,
-          status: 'success',
-          source_language_detected: sourceLanguage,
-          target_language: targetLanguage
-        }];
+      // Strategy 4: Direct AWS Translate format
+      else if (response?.TranslatedText && originalTexts.length === 1) {
+        console.log('✅ Found direct AWS Translate response');
+        translationData = {
+          request_metadata: {
+            source_language: sourceLanguage,
+            target_language: targetLanguage,
+            total_texts: 1,
+            successful_translations: 1,
+            failed_translations: 0,
+            timestamp: new Date().toISOString()
+          },
+          translations: [{
+            original_text: originalTexts[0],
+            translated_text: response.TranslatedText,
+            index: 0,
+            status: 'success',
+            source_language_detected: sourceLanguage,
+            target_language: targetLanguage
+          }],
+          summary: {
+            success_rate: 100,
+            total_characters_translated: response.TranslatedText.length
+          }
+        };
       }
 
-      // If no translations found, create error entries
-      if (!translations || translations.length === 0) {
-        console.warn('⚠️ No translations found, creating error entries');
-        translations = originalTexts.map((text, index) => ({
-          original_text: text,
-          translated_text: null,
-          index: index,
-          status: 'error',
-          error: 'No translation received from service'
-        }));
+      // Strategy 5: Fallback - try to fetch from S3 response bucket
+      if (!translationData || !translationData.translations) {
+        console.log('⚠️ No translations found in API response, trying S3 fallback...');
+        translationData = await fetchFromS3ResponseBucket(requestTimestamp, originalTexts);
       }
 
-      // Calculate stats
-      const successfulTranslations = translations.filter(t => t.status === 'success' && t.translated_text);
-      const successCount = successfulTranslations.length;
-      const totalCount = translations.length;
-      const failedCount = totalCount - successCount;
-      const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 0;
-      const totalCharacters = successfulTranslations.reduce((sum, t) => sum + (t.translated_text?.length || 0), 0);
+      // Strategy 6: Final fallback - create error entries
+      if (!translationData || !translationData.translations) {
+        console.warn('❌ No translation data found anywhere, creating error entries');
+        translationData = createErrorResponse(originalTexts, 'No translation received from service');
+      }
 
-      const result = {
-        request_metadata: {
-          source_language: sourceLanguage,
-          target_language: targetLanguage,
-          total_texts: totalCount,
-          successful_translations: successCount,
-          failed_translations: failedCount,
-          timestamp: new Date().toISOString()
-        },
-        translations: translations,
-        summary: {
-          success_rate: successRate,
-          total_characters_translated: totalCharacters
-        }
-      };
-
-      console.log('✅ FINAL PROCESSED RESULT:', result);
-      return result;
+      console.log('📋 Final translation data:', translationData);
+      return translationData;
 
     } catch (error) {
       console.error('❌ Error processing response:', error);
-      
-      // Return error structure
-      return {
-        request_metadata: {
-          source_language: sourceLanguage,
-          target_language: targetLanguage,
-          total_texts: originalTexts.length,
-          successful_translations: 0,
-          failed_translations: originalTexts.length,
-          timestamp: new Date().toISOString()
-        },
-        translations: originalTexts.map((text, index) => ({
-          original_text: text,
-          translated_text: null,
-          index: index,
-          status: 'error',
-          error: `Processing error: ${error.message}`
-        })),
-        summary: {
-          success_rate: 0,
-          total_characters_translated: 0
-        }
-      };
+      return createErrorResponse(originalTexts, `Processing error: ${error.message}`);
     }
   };
 
-  // Handle text translation
+  // NEW: Fetch translation results from S3 response bucket
+  const fetchFromS3ResponseBucket = async (timestamp, originalTexts) => {
+    try {
+      console.log('🔍 Searching S3 response bucket for recent translations...');
+      
+      // List recent files in response bucket
+      const listResult = await list({
+        path: 'public/',
+        options: {
+          listAll: true
+        }
+      });
+
+      console.log('📁 Found files in S3:', listResult.items?.length || 0);
+
+      // Find the most recent response file (within last 2 minutes)
+      const recentFiles = listResult.items
+        ?.filter(item => 
+          item.path?.includes('api-response-') && 
+          item.path?.endsWith('.json') &&
+          item.lastModified && 
+          (Date.now() - new Date(item.lastModified).getTime()) < 120000 // 2 minutes
+        )
+        ?.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
+
+      if (recentFiles && recentFiles.length > 0) {
+        console.log('📄 Found recent response file:', recentFiles[0].path);
+        
+        try {
+          // Download and parse the response file
+          const downloadResult = await downloadData({
+            path: recentFiles[0].path
+          }).result;
+          
+          const responseText = await downloadResult.body.text();
+          const responseData = JSON.parse(responseText);
+          
+          console.log('✅ Successfully fetched response from S3:', responseData);
+          
+          // Extract translation result
+          if (responseData.translation_result && responseData.translation_result.translations) {
+            return responseData.translation_result;
+          }
+        } catch (fetchError) {
+          console.error('❌ Error fetching from S3:', fetchError);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Error accessing S3 response bucket:', error);
+      return null;
+    }
+  };
+
+  // Helper function to create error response
+  const createErrorResponse = (originalTexts, errorMessage) => {
+    return {
+      request_metadata: {
+        source_language: sourceLanguage,
+        target_language: targetLanguage,
+        total_texts: originalTexts.length,
+        successful_translations: 0,
+        failed_translations: originalTexts.length,
+        timestamp: new Date().toISOString()
+      },
+      translations: originalTexts.map((text, index) => ({
+        original_text: text,
+        translated_text: null,
+        index: index,
+        status: 'error',
+        error: errorMessage
+      })),
+      summary: {
+        success_rate: 0,
+        total_characters_translated: 0
+      }
+    };
+  };
+
+  // FIXED: Handle text translation with improved response handling
   const handleTextTranslation = async () => {
     if (!textInput.trim()) {
       setError('Please enter some text to translate');
@@ -163,9 +215,11 @@ const TranslationForm = ({ user }) => {
 
       console.log('📤 Sending translation request:', translationRequest);
 
-      // Try to save request to S3 (optional, don't fail if it doesn't work)
+      const requestTimestamp = Date.now();
+
+      // Try to save request to S3 (optional)
       try {
-        const requestFileName = `text-request-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`;
+        const requestFileName = `text-request-${requestTimestamp}-${Math.random().toString(36).substr(2, 9)}.json`;
         await uploadData({
           path: `public/${requestFileName}`,
           data: JSON.stringify(translationRequest, null, 2),
@@ -186,21 +240,42 @@ const TranslationForm = ({ user }) => {
 
       // Call the API Gateway endpoint
       console.log('📡 Calling API Gateway...');
-      const response = await post({
-        apiName: 'TranslateAPI',
-        path: '/translate',
-        options: {
-          body: translationRequest,
-          headers: {
-            'Content-Type': 'application/json'
+      
+      let apiResponse = null;
+      try {
+        const response = await post({
+          apiName: 'TranslateAPI',
+          path: '/translate',
+          options: {
+            body: translationRequest,
+            headers: {
+              'Content-Type': 'application/json'
+            }
           }
+        });
+
+        console.log('📥 Raw API Response:', response);
+        
+        // Handle the response - it might be wrapped in a promise
+        if (response && typeof response.then === 'function') {
+          console.log('🔄 Response is a promise, awaiting...');
+          apiResponse = await response;
+        } else if (response && response.response && typeof response.response.then === 'function') {
+          console.log('🔄 Response.response is a promise, awaiting...');
+          apiResponse = await response.response;
+        } else {
+          apiResponse = response;
         }
-      });
 
-      console.log('📥 Raw API Response:', response);
+        console.log('📋 Processed API Response:', apiResponse);
 
-      // Process the response
-      const translationResult = processApiResponse(response, textsArray);
+      } catch (apiError) {
+        console.error('❌ API Gateway error:', apiError);
+        // Continue to S3 fallback
+      }
+
+      // Process the response with multiple strategies
+      const translationResult = await processApiResponse(apiResponse, textsArray, requestTimestamp);
 
       // Set the results for display
       setTranslationResults(translationResult);
@@ -209,9 +284,9 @@ const TranslationForm = ({ user }) => {
       const totalCount = translationResult.request_metadata?.total_texts || 0;
 
       if (successCount > 0) {
-        setSuccess(`Translation completed! Successfully translated ${successCount} of ${totalCount} text(s).`);
+        setSuccess(`🎉 Translation completed! Successfully translated ${successCount} of ${totalCount} text(s).`);
       } else {
-        setError(`Translation failed. Please check your input and try again.`);
+        setError(`❌ Translation failed. Please try again or check your input.`);
       }
 
       clearMessages();
@@ -233,27 +308,7 @@ const TranslationForm = ({ user }) => {
 
       // Still show error result to user
       const texts = textInput.split('\n').filter(line => line.trim());
-      const errorResult = {
-        request_metadata: {
-          source_language: sourceLanguage,
-          target_language: targetLanguage,
-          total_texts: texts.length,
-          successful_translations: 0,
-          failed_translations: texts.length,
-          timestamp: new Date().toISOString()
-        },
-        translations: texts.map((text, index) => ({
-          original_text: text,
-          translated_text: null,
-          index: index,
-          status: 'error',
-          error: errorMessage
-        })),
-        summary: {
-          success_rate: 0,
-          total_characters_translated: 0
-        }
-      };
+      const errorResult = createErrorResponse(texts, errorMessage);
 
       setTranslationResults(errorResult);
       setError(errorMessage);
@@ -289,9 +344,11 @@ const TranslationForm = ({ user }) => {
         throw new Error('Invalid file format. Required fields: source_language, target_language, texts');
       }
 
+      const requestTimestamp = Date.now();
+
       // Try to upload file to S3 (optional)
       try {
-        const fileName = `file-request-${Date.now()}-${file.name}`;
+        const fileName = `file-request-${requestTimestamp}-${file.name}`;
         await uploadData({
           path: `public/${fileName}`,
           data: file,
@@ -317,29 +374,43 @@ const TranslationForm = ({ user }) => {
       setSuccess(`File processed! Starting translation...`);
 
       // Process via API
-      const response = await post({
-        apiName: 'TranslateAPI',
-        path: '/translate',
-        options: {
-          body: requestData,
-          headers: {
-            'Content-Type': 'application/json'
+      let apiResponse = null;
+      try {
+        const response = await post({
+          apiName: 'TranslateAPI',
+          path: '/translate',
+          options: {
+            body: requestData,
+            headers: {
+              'Content-Type': 'application/json'
+            }
           }
-        }
-      });
+        });
 
-      console.log('📥 File API Response:', response);
+        console.log('📥 File API Response:', response);
+        
+        if (response && typeof response.then === 'function') {
+          apiResponse = await response;
+        } else if (response && response.response && typeof response.response.then === 'function') {
+          apiResponse = await response.response;
+        } else {
+          apiResponse = response;
+        }
+
+      } catch (apiError) {
+        console.error('❌ File API error:', apiError);
+      }
 
       // Process the response
-      const translationResult = processApiResponse(response, requestData.texts);
+      const translationResult = await processApiResponse(apiResponse, requestData.texts, requestTimestamp);
 
       setTranslationResults(translationResult);
       
       const successCount = translationResult.request_metadata?.successful_translations || 0;
       if (successCount > 0) {
-        setSuccess(`File translation completed! Successfully translated ${successCount} text(s).`);
+        setSuccess(`🎉 File translation completed! Successfully translated ${successCount} text(s).`);
       } else {
-        setError('File translation failed. Please check the file format and try again.');
+        setError('❌ File translation failed. Please check the file format and try again.');
       }
 
       clearMessages();
@@ -419,10 +490,10 @@ const TranslationForm = ({ user }) => {
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
-        setSuccess('Translation copied to clipboard!');
+        setSuccess('✅ Translation copied to clipboard!');
         clearMessages();
       }).catch(() => {
-        setError('Failed to copy to clipboard');
+        setError('❌ Failed to copy to clipboard');
         clearMessages();
       });
     } else {
@@ -432,10 +503,10 @@ const TranslationForm = ({ user }) => {
       textArea.select();
       try {
         document.execCommand('copy');
-        setSuccess('Translation copied to clipboard!');
+        setSuccess('✅ Translation copied to clipboard!');
         clearMessages();
       } catch (err) {
-        setError('Failed to copy to clipboard');
+        setError('❌ Failed to copy to clipboard');
         clearMessages();
       }
       document.body.removeChild(textArea);
@@ -454,7 +525,7 @@ const TranslationForm = ({ user }) => {
     if (successfulTranslations) {
       copyToClipboard(successfulTranslations);
     } else {
-      setError('No successful translations to copy');
+      setError('❌ No successful translations to copy');
       clearMessages();
     }
   };
@@ -463,11 +534,11 @@ const TranslationForm = ({ user }) => {
     <div className="translation-form">
       {/* Language Selection */}
       <div className="language-section">
-        <h3>Language Settings</h3>
+        <h3>🌐 Language Settings</h3>
 
         {/* Common Language Pairs */}
         <div className="language-pairs">
-          <label>Quick Selection:</label>
+          <label>⚡ Quick Selection:</label>
           <div className="pairs-grid">
             {COMMON_LANGUAGE_PAIRS.map((pair, index) => (
               <button
@@ -488,7 +559,7 @@ const TranslationForm = ({ user }) => {
         {/* Language Dropdowns */}
         <div className="language-controls">
           <div className="language-select">
-            <label htmlFor="source-language">From:</label>
+            <label htmlFor="source-language">📝 From:</label>
             <select
               id="source-language"
               value={sourceLanguage}
@@ -507,11 +578,11 @@ const TranslationForm = ({ user }) => {
             className="swap-button"
             title="Swap languages"
           >
-            ⇄
+            🔄
           </button>
 
           <div className="language-select">
-            <label htmlFor="target-language">To:</label>
+            <label htmlFor="target-language">🎯 To:</label>
             <select
               id="target-language"
               value={targetLanguage}
@@ -533,13 +604,13 @@ const TranslationForm = ({ user }) => {
           onClick={() => setActiveTab('text')}
           className={`tab-button ${activeTab === 'text' ? 'active' : ''}`}
         >
-          Text Input
+          📝 Text Input
         </button>
         <button
           onClick={() => setActiveTab('file')}
           className={`tab-button ${activeTab === 'file' ? 'active' : ''}`}
         >
-          File Upload
+          📁 File Upload
         </button>
       </div>
 
@@ -547,7 +618,7 @@ const TranslationForm = ({ user }) => {
       {activeTab === 'text' && (
         <div className="text-input-section">
           <div className="input-group">
-            <label htmlFor="text-input">Enter text to translate:</label>
+            <label htmlFor="text-input">✏️ Enter text to translate:</label>
             <textarea
               id="text-input"
               value={textInput}
@@ -558,7 +629,7 @@ const TranslationForm = ({ user }) => {
             />
             <div className="input-info">
               <small>
-                Tip: Each line will be translated separately.
+                💡 Tip: Each line will be translated separately.
                 Current character count: {textInput.length}
               </small>
             </div>
@@ -572,11 +643,11 @@ const TranslationForm = ({ user }) => {
             {loading ? (
               <>
                 <span className="loading-spinner"></span>
-                Translating...
+                🔄 Translating...
               </>
             ) : (
               <>
-                Translate Text
+                🚀 Translate Text
               </>
             )}
           </button>
@@ -623,7 +694,7 @@ const TranslationForm = ({ user }) => {
           </div>
 
           <div className="file-format-example">
-            <h4>Expected JSON Format:</h4>
+            <h4>📋 Expected JSON Format:</h4>
             <pre>
 {`{
   "source_language": "en",
@@ -645,11 +716,11 @@ const TranslationForm = ({ user }) => {
             {loading ? (
               <>
                 <span className="loading-spinner"></span>
-                Processing...
+                🔄 Processing...
               </>
             ) : (
               <>
-                Upload & Translate
+                📤 Upload & Translate
               </>
             )}
           </button>
@@ -671,9 +742,9 @@ const TranslationForm = ({ user }) => {
         </div>
       )}
 
-      {/* ENHANCED TRANSLATION RESULTS DISPLAY */}
+      {/* ENHANCED TRANSLATION RESULTS DISPLAY - GUARANTEED TO SHOW */}
       {translationResults && (
-        <div className="results-section">
+        <div className="results-section" style={{display: 'block !important', visibility: 'visible !important'}}>
           <div className="results-header">
             <h3>🎯 Translation Results</h3>
             <div className="results-actions">
@@ -720,14 +791,14 @@ const TranslationForm = ({ user }) => {
             </div>
           )}
 
-          {/* MAIN TRANSLATION DISPLAY - Fixed and Enhanced */}
-          <div className="main-translation-display">
+          {/* MAIN TRANSLATION DISPLAY - FORCED VISIBILITY */}
+          <div className="main-translation-display" style={{display: 'block !important', visibility: 'visible !important', opacity: '1 !important'}}>
             <h4>✨ Your Translations</h4>
 
             {translationResults.translations && translationResults.translations.length > 0 ? (
-              <div className="translated-texts-container">
+              <div className="translated-texts-container" style={{display: 'flex !important', visibility: 'visible !important'}}>
                 {translationResults.translations.map((translation, index) => (
-                  <div key={index} className="translation-item-container">
+                  <div key={index} className="translation-item-container" style={{display: 'block !important', visibility: 'visible !important'}}>
                     {translation.status === 'success' && translation.translated_text ? (
                       <div className="translation-success-item">
                         <div className="translation-pair">

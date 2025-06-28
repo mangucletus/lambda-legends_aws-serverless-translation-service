@@ -1,4 +1,3 @@
-# infrastructure/main.tf
 # ENHANCED: Main Terraform configuration with improved Cognito setup and error handling
 
 terraform {
@@ -530,7 +529,6 @@ resource "aws_lambda_function" "translate_function" {
   ]
 }
 
-
 # Lambda permission for S3 trigger
 resource "aws_lambda_permission" "allow_bucket" {
   statement_id  = "AllowExecutionFromS3Bucket"
@@ -960,6 +958,80 @@ resource "aws_api_gateway_deployment" "translate_deployment" {
   }
 }
 
+# API Gateway CloudWatch log group
+resource "aws_cloudwatch_log_group" "api_gateway_logs" {
+  count             = var.enable_api_gateway_logs ? 1 : 0
+  name              = "/aws/apigateway/${var.project_name}-translate-api"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.common_tags, {
+    Name = "API Gateway Log Group"
+    Type = "Monitoring"
+  })
+}
+
+# IAM Role for API Gateway to write to CloudWatch Logs
+resource "aws_iam_role" "api_gateway_cloudwatch_role" {
+  name = "${var.project_name}-api-gateway-cloudwatch-role-${random_string.suffix.result}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "apigateway.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "API Gateway CloudWatch Role"
+    Type = "IAM"
+  })
+}
+
+# IAM Policy for API Gateway CloudWatch Logs access
+resource "aws_iam_policy" "api_gateway_cloudwatch_policy" {
+  name        = "${var.project_name}-api-gateway-cloudwatch-policy-${random_string.suffix.result}"
+  description = "Policy for API Gateway to write logs to CloudWatch"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CloudWatchLogsAccess"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+          "logs:PutLogEvents",
+          "logs:GetLogEvents",
+          "logs:FilterLogEvents"
+        ]
+        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# Attach the policy to the role
+resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_policy_attachment" {
+  role       = aws_iam_role.api_gateway_cloudwatch_role.name
+  policy_arn = aws_iam_policy.api_gateway_cloudwatch_policy.arn
+}
+
+# Configure API Gateway account settings to use the CloudWatch Logs role
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
+}
+
 # API Gateway stage
 resource "aws_api_gateway_stage" "translate_stage" {
   deployment_id = aws_api_gateway_deployment.translate_deployment.id
@@ -990,18 +1062,10 @@ resource "aws_api_gateway_stage" "translate_stage" {
     Name = "Translation API Stage"
     Type = "API"
   })
-}
 
-# API Gateway CloudWatch log group
-resource "aws_cloudwatch_log_group" "api_gateway_logs" {
-  count             = var.enable_api_gateway_logs ? 1 : 0
-  name              = "/aws/apigateway/${var.project_name}-translate-api"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(local.common_tags, {
-    Name = "API Gateway Log Group"
-    Type = "Monitoring"
-  })
+  depends_on = [
+    aws_api_gateway_account.main
+  ]
 }
 
 # ===== CLOUDFRONT DISTRIBUTION =====

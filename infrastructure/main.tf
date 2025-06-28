@@ -642,11 +642,10 @@ resource "aws_cognito_user_pool_client" "main" {
   name         = "${var.project_name}-user-pool-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  # FIXED: Authentication flows for email-only authentication
+  # FIXED: Simplified authentication flows for email-only authentication
   explicit_auth_flows = [
     "ALLOW_USER_SRP_AUTH",
-    "ALLOW_REFRESH_TOKEN_AUTH",
-    "ALLOW_USER_PASSWORD_AUTH"
+    "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
   # Token validity configuration

@@ -1,5 +1,5 @@
 // frontend/src/index.js
-// FIXED: React application entry point with enhanced Amplify configuration and error handling
+// FIXED: React application entry point with Amplify v6 and enhanced error handling
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -21,46 +21,79 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('🚨 Application error caught by boundary:', error, errorInfo);
+    console.error('🚨 React Error Boundary:', error, errorInfo);
     this.setState({ error: error, errorInfo: errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <div className="error-container">
-            <h2>⚠️ Application Error</h2>
-            <p>Something went wrong while loading the application.</p>
-            
-            {this.state.error?.message?.includes('region') && (
-              <div className="config-error-help">
-                <h3>🔧 Configuration Issue Detected</h3>
-                <p>This appears to be an AWS configuration problem.</p>
-                <ol>
-                  <li>Deploy the infrastructure: <code>cd infrastructure &amp;&amp; terraform apply</code></li>
-                  <li>Get outputs: <code>terraform output -json</code></li>
-                  <li>Update environment variables or aws-config.js</li>
-                  <li>Restart the application</li>
-                </ol>
-              </div>
-            )}
-
-            <details className="error-details">
-              <summary>🔍 Error Details (Click to expand)</summary>
-              <pre className="error-stack">
-                {this.state.error && this.state.error.toString()}
-                <br />
-                {this.state.errorInfo && this.state.errorInfo.componentStack}
-              </pre>
-            </details>
-
-            <button
-              className="retry-button"
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '2rem',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+          fontFamily: 'Inter, sans-serif'
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '3rem',
+            borderRadius: '16px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            maxWidth: '600px',
+            border: '3px solid #0073bb'
+          }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🌐</div>
+            <h1 style={{ color: '#0073bb', marginBottom: '1rem' }}>AWS Translate</h1>
+            <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
+              There was an error loading the application. Please refresh the page.
+            </p>
+            <button 
               onClick={() => window.location.reload()}
+              style={{
+                background: '#0073bb',
+                color: 'white',
+                border: 'none',
+                padding: '1rem 2rem',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginBottom: '1rem'
+              }}
             >
-              🔄 Reload Application
+              🔄 Refresh Page
             </button>
+            {this.state.error && (
+              <details style={{ marginTop: '2rem', textAlign: 'left' }}>
+                <summary style={{ cursor: 'pointer', color: '#f59e0b', fontWeight: '600' }}>
+                  🔍 Technical Details
+                </summary>
+                <div style={{
+                  background: '#f3f4f6',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  marginTop: '0.5rem',
+                  border: '1px solid #d1d5db'
+                }}>
+                  <strong>Error:</strong> {this.state.error.toString()}
+                  {this.state.errorInfo && (
+                    <>
+                      <br /><br />
+                      <strong>Component Stack:</strong>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}>
+                        {this.state.errorInfo.componentStack}
+                      </pre>
+                    </>
+                  )}
+                </div>
+              </details>
+            )}
           </div>
         </div>
       );
@@ -69,118 +102,114 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Configuration validation with user-friendly error handling
-const initializeAmplify = () => {
-  try {
-    console.log('🚀 Initializing AWS Amplify...');
-    
-    // Validate configuration first
-    const isConfigValid = validateConfig();
-    
-    if (!isConfigValid && process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'AWS configuration is incomplete. Please check your deployment pipeline or environment variables.'
-      );
-    }
-
-    // FIXED: Enhanced Amplify configuration for proper authentication
-    const amplifyConfig = {
-      Auth: {
-        Cognito: {
-          region: awsConfig.region,
-          userPoolId: awsConfig.userPoolId,
-          userPoolClientId: awsConfig.userPoolWebClientId,
-          identityPoolId: awsConfig.identityPoolId,
-          loginWith: {
-            email: true,
-            username: false, // Disable username login
-            phone: false,    // Disable phone login
-          },
-          signUpVerificationMethod: 'code', // Email verification
-          userAttributes: {
-            email: {
-              required: true,
-            },
-          },
-        }
-      },
-      Storage: {
-        S3: {
-          bucket: awsConfig.requestBucketName,
-          region: awsConfig.region,
-          // Remove any path prefix - let the component handle paths
-        }
-      },
-      API: {
-        REST: {
-          TranslateAPI: {
-            endpoint: awsConfig.apiGatewayUrl,
-            region: awsConfig.region
-          }
-        }
-      }
-    };
-
-    Amplify.configure(amplifyConfig);
-    
-    console.log('✅ AWS Amplify configured successfully');
-    console.log('📍 Region:', awsConfig.region);
-    console.log('🔐 User Pool ID:', awsConfig.userPoolId.substring(0, 20) + '...');
-    console.log('🌐 API Gateway:', awsConfig.apiGatewayUrl.substring(0, 40) + '...');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to initialize Amplify:', error);
-    
-    // In development, continue anyway for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️ Continuing in development mode with incomplete configuration');
-      try {
-        // Try to configure with whatever we have
-        Amplify.configure({
-          Auth: {
-            Cognito: {
-              region: awsConfig.region || 'us-east-1',
-              userPoolId: awsConfig.userPoolId,
-              userPoolClientId: awsConfig.userPoolWebClientId,
-              identityPoolId: awsConfig.identityPoolId,
-              loginWith: { email: true },
-            }
-          }
-        });
-        return true;
-      } catch (devError) {
-        console.error('❌ Failed to configure even in development mode:', devError);
-        return false;
-      }
-    }
-    
-    throw error;
-  }
-};
-
-// Configuration check component
+// Configuration checker and Amplify initializer component
 const ConfigurationChecker = ({ children }) => {
   const [configStatus, setConfigStatus] = React.useState('checking');
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    try {
-      const success = initializeAmplify();
-      setConfigStatus(success ? 'ready' : 'error');
-    } catch (err) {
-      setError(err);
-      setConfigStatus('error');
-    }
+    const initializeApp = async () => {
+      try {
+        console.log('🔧 Initializing AWS Translate Application...');
+        
+        // Validate configuration first
+        const isValid = validateConfig();
+        
+        if (!isValid) {
+          throw new Error('AWS configuration is incomplete. Please check your environment variables or deployment pipeline.');
+        }
+
+        // Configure Amplify with v6 syntax
+        Amplify.configure({
+          Auth: {
+            Cognito: {
+              region: awsConfig.region,
+              userPoolId: awsConfig.userPoolId,
+              userPoolClientId: awsConfig.userPoolWebClientId,
+              identityPoolId: awsConfig.identityPoolId,
+              loginWith: {
+                email: true,
+                username: false,
+                phone: false
+              },
+              signUpVerificationMethod: 'code',
+              userAttributes: {
+                email: {
+                  required: true
+                }
+              },
+              allowGuestAccess: false,
+              passwordFormat: {
+                minLength: 8,
+                requireLowercase: true,
+                requireUppercase: true,
+                requireNumbers: true,
+                requireSpecialCharacters: false
+              }
+            }
+          },
+          Storage: {
+            S3: {
+              bucket: awsConfig.requestBucketName,
+              region: awsConfig.region
+            }
+          },
+          API: {
+            REST: {
+              TranslateAPI: {
+                endpoint: awsConfig.apiGatewayUrl,
+                region: awsConfig.region
+              }
+            }
+          }
+        });
+
+        console.log('✅ Amplify configured successfully');
+        console.log('📍 Region:', awsConfig.region);
+        console.log('🔐 User Pool:', awsConfig.userPoolId.substring(0, 20) + '...');
+        console.log('🌐 API Gateway:', awsConfig.apiGatewayUrl.substring(0, 40) + '...');
+        
+        setConfigStatus('ready');
+      } catch (err) {
+        console.error('❌ Configuration error:', err);
+        setError(err);
+        setConfigStatus('error');
+      }
+    };
+
+    initializeApp();
   }, []);
 
   if (configStatus === 'checking') {
     return (
-      <div className="app-loading">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <h2>🔧 Initializing Application</h2>
-          <p>Checking AWS configuration...</p>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)'
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '3rem',
+          borderRadius: '16px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+          textAlign: 'center',
+          border: '2px solid #0073bb'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid #e5e7eb',
+            borderTop: '4px solid #0073bb',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1.5rem'
+          }}></div>
+          <h2 style={{ color: '#0073bb', marginBottom: '0.5rem', fontSize: '1.5rem' }}>
+            🔧 Initializing Application
+          </h2>
+          <p style={{ color: '#6b7280', margin: 0 }}>Checking AWS configuration...</p>
         </div>
       </div>
     );
@@ -188,47 +217,80 @@ const ConfigurationChecker = ({ children }) => {
 
   if (configStatus === 'error') {
     return (
-      <div className="app-error">
-        <div className="error-container">
-          <h2>⚠️ Configuration Required</h2>
-          <p>{error?.message || 'Application configuration is incomplete.'}</p>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)'
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '3rem',
+          borderRadius: '16px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+          maxWidth: '700px',
+          textAlign: 'center',
+          border: '3px solid #ef4444'
+        }}>
+          <h2 style={{ color: '#ef4444', marginBottom: '1rem', fontSize: '2rem' }}>
+            ⚠️ Configuration Required
+          </h2>
+          <p style={{ color: '#6b7280', marginBottom: '2rem', fontSize: '1.1rem' }}>
+            {error?.message || 'AWS configuration is incomplete or invalid'}
+          </p>
           
-          <div className="config-help">
-            <h3>🛠️ For Developers:</h3>
-            <ol>
-              <li>
-                <strong>Deploy Infrastructure:</strong>
-                <pre><code>cd infrastructure &amp;&amp; terraform apply</code></pre>
-              </li>
-              <li>
-                <strong>Get Terraform Outputs:</strong>
-                <pre><code>terraform output -json &gt; outputs.json</code></pre>
-              </li>
-              <li>
-                <strong>Update Configuration:</strong>
-                <ul>
-                  <li>Set environment variables in <code>.env</code> file</li>
-                  <li>Or manually update <code>src/aws-config.js</code></li>
-                </ul>
-              </li>
-              <li>
-                <strong>Restart Application:</strong>
-                <pre><code>npm start</code></pre>
-              </li>
+          <div style={{
+            background: '#fef3c7',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            textAlign: 'left',
+            marginBottom: '2rem',
+            borderLeft: '4px solid #f59e0b'
+          }}>
+            <h3 style={{ color: '#92400e', marginBottom: '1rem' }}>
+              🛠️ For Developers (CI/CD):
+            </h3>
+            <ol style={{ color: '#92400e', paddingLeft: '1.5rem', margin: 0 }}>
+              <li>Check that Terraform outputs are being passed to the build</li>
+              <li>Verify environment variables in deployment pipeline</li>
+              <li>Ensure the build process sets REACT_APP_* variables correctly</li>
+              <li>Check CloudFormation/Terraform deployment logs</li>
             </ol>
           </div>
 
-          <div className="config-status">
-            <h4>📋 Current Configuration Status:</h4>
-            <ul>
-              <li>User Pool ID: {awsConfig.userPoolId.includes('XXXXXXXX') ? '❌ Missing' : '✅ Set'}</li>
-              <li>Client ID: {awsConfig.userPoolWebClientId.includes('XXXXXXXX') ? '❌ Missing' : '✅ Set'}</li>
-              <li>Identity Pool: {awsConfig.identityPoolId.includes('XXXXXXXX') ? '❌ Missing' : '✅ Set'}</li>
-              <li>API Gateway: {awsConfig.apiGatewayUrl.includes('XXXXXXXX') ? '❌ Missing' : '✅ Set'}</li>
+          <div style={{
+            background: '#f3f4f6',
+            padding: '1rem',
+            borderRadius: '8px',
+            textAlign: 'left',
+            marginBottom: '2rem',
+            fontSize: '0.9rem'
+          }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#374151' }}>Missing Configuration:</h4>
+            <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#6b7280' }}>
+              {Object.entries(awsConfig).map(([key, value]) => (
+                <li key={key}>
+                  {key}: {value ? '✅ Set' : '❌ Missing'}
+                </li>
+              ))}
             </ul>
           </div>
 
-          <button onClick={() => window.location.reload()} className="retry-button">
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              background: '#0073bb',
+              color: 'white',
+              border: 'none',
+              padding: '1rem 2rem',
+              borderRadius: '8px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
             🔄 Retry
           </button>
         </div>
@@ -239,23 +301,36 @@ const ConfigurationChecker = ({ children }) => {
   return children;
 };
 
-// Performance monitoring function
-function reportWebVitals(metric) {
-  console.log('📊 Web Vital:', metric.name, metric.value);
-  
-  // Log performance warnings
-  if (metric.name === 'FCP' && metric.value > 3000) {
-    console.warn('⚠️ Slow First Contentful Paint detected');
-  }
-  if (metric.name === 'CLS' && metric.value > 0.1) {
-    console.warn('⚠️ High Cumulative Layout Shift detected');
-  }
+// Add CSS animations and prevent duplicate style injection
+if (!document.getElementById('aws-translate-styles')) {
+  const style = document.createElement('style');
+  style.id = 'aws-translate-styles';
+  style.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Ensure critical translation display styles */
+    .translation-output-section {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    .translated-texts-container {
+      display: flex !important;
+      flex-direction: column !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
-// Create root element and render the application
+// Create root and render the application
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// Render the application with enhanced error boundaries and configuration checking
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -266,8 +341,21 @@ root.render(
   </React.StrictMode>
 );
 
-// Report web vitals for performance monitoring
+// Performance monitoring for development
 if (process.env.NODE_ENV === 'development') {
+  const reportWebVitals = (metric) => {
+    console.log('📊 Web Vital:', metric.name, metric.value);
+    
+    // Log performance warnings
+    if (metric.name === 'FCP' && metric.value > 3000) {
+      console.warn('⚠️ Slow First Contentful Paint detected');
+    }
+    if (metric.name === 'CLS' && metric.value > 0.1) {
+      console.warn('⚠️ High Cumulative Layout Shift detected');
+    }
+  };
+
+  // Dynamic import for web-vitals
   import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
     getCLS(reportWebVitals);
     getFID(reportWebVitals);
@@ -279,34 +367,35 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Service worker registration (disabled for now to avoid errors)
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then((registration) => {
-        console.log('✅ SW registered: ', registration);
-      })
-      .catch((registrationError) => {
-        console.log('ℹ️ SW registration skipped: ', registrationError.message);
-      });
-  });
-}
-
-// Global error handler for unhandled promise rejections
-window.addEventListener('unhandledrejection', event => {
-  console.error('🚨 Unhandled promise rejection:', event.reason);
+// Global error handlers for better debugging
+window.addEventListener('error', (event) => {
+  console.error('🚨 Global error:', event.error);
   
-  // Don't break the app for certain types of errors
+  // Handle specific bundle loading errors
+  if (event.error && event.error.message) {
+    const errorMessage = event.error.message.toLowerCase();
+    
+    if (errorMessage.includes('unexpected token') && errorMessage.includes('<')) {
+      console.error('🚨 Bundle loading error detected - likely configuration issue');
+      console.error('🔧 Check environment variables and build process');
+    }
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.warn('🔧 Unhandled promise rejection:', event.reason);
+  
+  // Don't break the app for certain promise rejections
   if (event.reason && typeof event.reason === 'string') {
     if (event.reason.includes('ServiceWorker') || 
         event.reason.includes('manifest') || 
         event.reason.includes('icon')) {
       event.preventDefault();
-      return;
+      return false;
     }
   }
 });
 
 console.log('🚀 AWS Translate Application initialized');
-console.log('Environment:', process.env.NODE_ENV);
-console.log('React Version:', React.version);
+console.log('🏗️ Environment:', process.env.NODE_ENV);
+console.log('⚛️ React Version:', React.version);

@@ -1,86 +1,17 @@
+// frontend/src/App.js
+// FIXED: Main application component with Amplify UI v6 and email-only authentication
+
 import React from 'react';
-import { Amplify } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { signOut } from 'aws-amplify/auth';
 import TranslationForm from './components/TranslationForm';
-import awsConfig, { validateConfig, SUPPORTED_LANGUAGES } from './aws-config';
-
-// Initialize Amplify with configuration
-try {
-  Amplify.configure({
-    Auth: {
-      region: awsConfig.region,
-      userPoolId: awsConfig.userPoolId,
-      userPoolWebClientId: awsConfig.userPoolWebClientId,
-      identityPoolId: awsConfig.identityPoolId,
-      mandatorySignIn: true,
-      authenticationFlowType: 'USER_SRP_AUTH',
-      // Explicitly disable OAuth
-      oauth: null
-    },
-    API: {
-      endpoints: [
-        {
-          name: 'translateApi',
-          endpoint: awsConfig.apiGatewayUrl,
-          region: awsConfig.region,
-        },
-      ],
-    },
-    Storage: {
-      AWSS3: {
-        bucket: awsConfig.requestBucketName,
-        region: awsConfig.region,
-      },
-    },
-  });
-  console.log('Amplify configured successfully');
-} catch (error) {
-  console.error('Amplify configuration failed:', error);
-}
+import { SUPPORTED_LANGUAGES } from './aws-config';
 
 function App() {
-  const configValid = typeof validateConfig === 'function' ? validateConfig() : true;
-  const configError = !configValid
-    ? 'Application configuration is incomplete. Please check AWS configuration.'
-    : null;
-
-  // Show configuration error if needed
-  if (!configValid) {
-    return (
-      <div className="app-error">
-        <div className="error-container">
-          <h2>⚠️ Configuration Required</h2>
-          <p>{configError}</p>
-          
-          <div className="config-help">
-            <h3>🛠️ For Developers:</h3>
-            <ol>
-              <li>Deploy the infrastructure using Terraform</li>
-              <li>Update the AWS configuration in <code>aws-config.js</code></li>
-              <li>Or set the required environment variables</li>
-            </ol>
-            
-            <h4>📋 Required Environment Variables:</h4>
-            <pre>{`REACT_APP_AWS_REGION=us-east-1
-REACT_APP_USER_POOL_ID=your-user-pool-id
-REACT_APP_USER_POOL_CLIENT_ID=your-client-id
-REACT_APP_IDENTITY_POOL_ID=your-identity-pool-id
-REACT_APP_API_GATEWAY_URL=your-api-gateway-url
-REACT_APP_REQUEST_BUCKET=your-request-bucket
-REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
-          </div>
-          
-          <button onClick={() => window.location.reload()} className="retry-button">
-            🔄 Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Authenticator
+      loginMechanisms={['email']}
+      signUpAttributes={['email']}
       socialProviders={[]}
       variation="default"
       hideSignUp={false}
@@ -90,6 +21,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             placeholder: 'Enter your email address',
             label: 'Email Address',
             isRequired: true,
+            type: 'email',
             autocomplete: 'email'
           },
           password: {
@@ -97,7 +29,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             label: 'Password',
             isRequired: true,
             autocomplete: 'current-password'
-          },
+          }
         },
         signUp: {
           email: {
@@ -105,10 +37,11 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             label: 'Email Address',
             isRequired: true,
             order: 1,
+            type: 'email',
             autocomplete: 'email'
           },
           password: {
-            placeholder: 'Create a strong password (min 8 characters)',
+            placeholder: 'Create a password (minimum 8 characters)',
             label: 'Password',
             isRequired: true,
             order: 2,
@@ -120,7 +53,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             isRequired: true,
             order: 3,
             autocomplete: 'new-password'
-          },
+          }
         },
         confirmSignUp: {
           confirmation_code: {
@@ -128,7 +61,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             label: 'Verification Code',
             isRequired: true,
             autocomplete: 'one-time-code'
-          },
+          }
         },
         forceNewPassword: {
           password: {
@@ -136,15 +69,16 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             label: 'New Password',
             isRequired: true,
             autocomplete: 'new-password'
-          },
+          }
         },
         resetPassword: {
           username: {
             placeholder: 'Enter your email address',
             label: 'Email Address',
             isRequired: true,
+            type: 'email',
             autocomplete: 'email'
-          },
+          }
         },
         confirmResetPassword: {
           confirmation_code: {
@@ -158,8 +92,8 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             label: 'New Password',
             isRequired: true,
             autocomplete: 'new-password'
-          },
-        },
+          }
+        }
       }}
       components={{
         Header() {
@@ -176,7 +110,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
           return (
             <div className="authenticator-footer">
               <p>🔒 Secured by AWS Cognito - Your data is protected</p>
-              <p>✨ Start translating in 75+ languages instantly</p>
+              <p>✨ Start translating in {Object.keys(SUPPORTED_LANGUAGES).length}+ languages instantly</p>
             </div>
           );
         },
@@ -211,9 +145,10 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                 <p>Join thousands of users translating globally</p>
                 <div className="signup-benefits">
                   <div className="benefit">✅ Free translation service</div>
-                  <div className="benefit">✅ 75+ supported languages</div>
+                  <div className="benefit">✅ {Object.keys(SUPPORTED_LANGUAGES).length}+ supported languages</div>
                   <div className="benefit">✅ Secure cloud storage</div>
                   <div className="benefit">✅ Translation history</div>
+                  <div className="benefit">✅ Real-time results</div>
                 </div>
               </div>
             );
@@ -222,7 +157,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             return (
               <div className="auth-help">
                 <p>📧 We'll send a verification code to your email</p>
-                <p>🔐 Your password must be at least 8 characters</p>
+                <p>🔐 Your password must be at least 8 characters with uppercase, lowercase, and numbers</p>
               </div>
             );
           }
@@ -233,6 +168,10 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
               <div className="confirm-header">
                 <h3>📧 Check Your Email</h3>
                 <p>We've sent a verification code to your email address</p>
+                <div className="verification-info">
+                  <p>✉️ The code should arrive within a few minutes</p>
+                  <p>⏰ The verification code expires in 24 hours</p>
+                </div>
               </div>
             );
           },
@@ -240,17 +179,31 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             return (
               <div className="auth-help">
                 <p>🔍 Check your spam folder if you don't see the email</p>
-                <p>⏰ The code expires in 24 hours</p>
+                <p>📞 Need help? Contact support if the code doesn't arrive</p>
               </div>
             );
           }
         },
-      }}
-      loginMechanisms={['email']}
-      signUpAttributes={['email']}
-      // Enhanced error handling
-      onError={(error) => {
-        console.error('Authenticator error:', error);
+        ResetPassword: {
+          Header() {
+            return (
+              <div className="reset-header">
+                <h3>🔑 Reset Your Password</h3>
+                <p>Enter your email address and we'll send you a reset code</p>
+              </div>
+            );
+          }
+        },
+        ConfirmResetPassword: {
+          Header() {
+            return (
+              <div className="confirm-reset-header">
+                <h3>🔒 Set New Password</h3>
+                <p>Enter the code from your email and your new password</p>
+              </div>
+            );
+          }
+        }
       }}
     >
       {({ user, signOut: amplifySignOut }) => (
@@ -263,7 +216,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                   Professional translation service powered by AWS
                 </p>
                 <div className="header-stats">
-                  <span className="stat-item">🌍 {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ Languages</span>
+                  <span className="stat-item">🌍 {Object.keys(SUPPORTED_LANGUAGES).length}+ Languages</span>
                   <span className="stat-item">⚡ Instant Results</span>
                   <span className="stat-item">🔒 Enterprise Security</span>
                 </div>
@@ -289,6 +242,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                         window.location.reload();
                       } catch (error) {
                         console.error('Sign out error:', error);
+                        // Fallback to Amplify's sign out
                         amplifySignOut();
                       }
                     }} 
@@ -308,7 +262,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                 <div className="welcome-content">
                   <h2>🎯 Ready to Translate</h2>
                   <p>
-                    Transform your text into {Object.keys(SUPPORTED_LANGUAGES || {}).length}+ languages 
+                    Transform your text into {Object.keys(SUPPORTED_LANGUAGES).length}+ languages 
                     instantly. Enter text directly or upload a JSON file to get started.
                     Our AI-powered translation service delivers accurate results in seconds.
                   </p>
@@ -323,7 +277,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                       <span>☁️ Cloud Powered</span>
                     </div>
                     <div className="feature-chip">
-                      <span>🌍 75+ Languages</span>
+                      <span>🌍 {Object.keys(SUPPORTED_LANGUAGES).length}+ Languages</span>
                     </div>
                   </div>
                 </div>
@@ -351,7 +305,7 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                   <div className="feature-card">
                     <div className="feature-icon">🌐</div>
                     <h3>Global Reach</h3>
-                    <p>Support for 75+ languages and regional variants worldwide with continuous updates</p>
+                    <p>Support for {Object.keys(SUPPORTED_LANGUAGES).length}+ languages and regional variants worldwide with continuous updates</p>
                   </div>
 
                   <div className="feature-card">
@@ -460,5 +414,3 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
 }
 
 export default App;
-
-// Note: Ensure you have the necessary CSS styles in place for the classes used above

@@ -1,6 +1,6 @@
 # AWS Translate Application
 
-**Live Application:** [https://your-cloudfront-url.cloudfront.net](https://your-cloudfront-url.cloudfront.net)
+**Live Application:** [AWS Translate Service Application](https://d3w27mxar4i1fe.cloudfront.net/)
 
 A comprehensive serverless translation application built with AWS services, featuring a React frontend, Lambda-powered translation API, and complete CI/CD pipeline using Terraform and GitHub Actions.
 

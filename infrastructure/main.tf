@@ -215,7 +215,7 @@ resource "aws_dynamodb_table" "user_data" {
   }
 }
 
-resource "aws_dynam odb_table" "translation_metadata" {
+resource "aws_dynamodb_table" "translation_metadata" {
   name         = "${var.project_name}-translations"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "translation_id"

@@ -155,7 +155,7 @@ resource "aws_s3_bucket_cors_configuration" "request_bucket_cors" {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
     allowed_origins = ["*"]
-    expose_headers  = ["ETag", "x-amz-meta-*"]
+    expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }
 }
@@ -167,7 +167,7 @@ resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
     allowed_origins = ["*"]
-    expose_headers  = ["ETag", "x-amz-meta-*"]
+    expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }
 }
@@ -390,6 +390,15 @@ resource "aws_iam_policy" "lambda_policy" {
           "xray:PutTelemetryRecords"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "SQSAccess"
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = aws_sqs_queue.lambda_dlq.arn
       }
     ]
   })
@@ -444,6 +453,17 @@ resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
 }
 
 # ===== LAMBDA FUNCTION =====
+
+# Dead letter queue for Lambda (must be defined before Lambda function)
+resource "aws_sqs_queue" "lambda_dlq" {
+  name                      = "${var.project_name}-lambda-dlq"
+  message_retention_seconds = 1209600 # 14 days
+
+  tags = merge(local.common_tags, {
+    Name = "Lambda Dead Letter Queue"
+    Type = "Queue"
+  })
+}
 
 # Package Lambda function
 data "archive_file" "lambda_zip" {

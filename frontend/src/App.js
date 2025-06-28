@@ -5,32 +5,8 @@ import { signOut } from 'aws-amplify/auth';
 import TranslationForm from './components/TranslationForm';
 import awsConfig, { validateConfig, SUPPORTED_LANGUAGES } from './aws-config';
 
-// Validate configuration before Amplify initialization
-const isConfigValid = () => {
-  const requiredFields = [
-    'region',
-    'userPoolId',
-    'userPoolWebClientId',
-    'identityPoolId',
-    'apiGatewayUrl',
-    'requestBucketName',
-    'responseBucketName',
-    'cloudfrontUrl'
-  ];
-  for (const field of requiredFields) {
-    if (!awsConfig[field] || awsConfig[field] === 'XXXXXXXX') {
-      console.error(`Configuration error: ${field} is missing or invalid`);
-      return false;
-    }
-  }
-  return true;
-};
-
 // Initialize Amplify with configuration
 try {
-  if (!isConfigValid()) {
-    throw new Error('Invalid AWS configuration. Missing required fields.');
-  }
   Amplify.configure({
     Auth: {
       region: awsConfig.region,
@@ -39,6 +15,7 @@ try {
       identityPoolId: awsConfig.identityPoolId,
       mandatorySignIn: true,
       authenticationFlowType: 'USER_SRP_AUTH',
+      // Explicitly disable OAuth
       oauth: null
     },
     API: {
@@ -57,16 +34,13 @@ try {
       },
     },
   });
-  console.log('✅ AWS Amplify configured successfully');
-  console.log('📍 Region:', awsConfig.region);
-  console.log('🔐 User Pool ID:', awsConfig.userPoolId);
-  console.log('🌐 API Gateway:', awsConfig.apiGatewayUrl);
+  console.log('Amplify configured successfully');
 } catch (error) {
   console.error('Amplify configuration failed:', error);
 }
 
 function App() {
-  const configValid = isConfigValid() && validateConfig();
+  const configValid = typeof validateConfig === 'function' ? validateConfig() : true;
   const configError = !configValid
     ? 'Application configuration is incomplete. Please check AWS configuration.'
     : null;
@@ -94,8 +68,7 @@ REACT_APP_USER_POOL_CLIENT_ID=your-client-id
 REACT_APP_IDENTITY_POOL_ID=your-identity-pool-id
 REACT_APP_API_GATEWAY_URL=your-api-gateway-url
 REACT_APP_REQUEST_BUCKET=your-request-bucket
-REACT_APP_RESPONSE_BUCKET=your-response-bucket
-REACT_APP_CLOUDFRONT_URL=your-cloudfront-url`}</pre>
+REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
           </div>
           
           <button onClick={() => window.location.reload()} className="retry-button">
@@ -487,3 +460,5 @@ REACT_APP_CLOUDFRONT_URL=your-cloudfront-url`}</pre>
 }
 
 export default App;
+
+// Note: Ensure you have the necessary CSS styles in place for the classes used above

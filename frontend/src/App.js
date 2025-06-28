@@ -1,6 +1,3 @@
-// frontend/src/App.js
-// FIXED VERSION - Correct authentication form with username, email, password, confirm password
-
 import React from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { signOut } from 'aws-amplify/auth';
@@ -91,29 +88,23 @@ function App() {
           },
         },
         signUp: {
-          preferred_username: {
-            placeholder: 'Choose a username',
-            label: 'Username',
-            isRequired: true,
-            order: 1,
-          },
           email: {
             placeholder: 'Enter your email address',
             label: 'Email Address',
             isRequired: true,
-            order: 2,
+            order: 1,
           },
           password: {
             placeholder: 'Create a strong password (min 8 characters)',
             label: 'Password',
             isRequired: true,
-            order: 3,
+            order: 2,
           },
           confirm_password: {
             placeholder: 'Confirm your password',
             label: 'Confirm Password',
             isRequired: true,
-            order: 4,
+            order: 3,
           },
         },
         confirmSignUp: {
@@ -241,7 +232,7 @@ function App() {
           <footer className="app-footer">
             <div className="footer-content">
               <div className="footer-left">
-                <p>&copy; 2024 Team Lambda Legends. Professional Translation Solutions.</p>
+                <p>© 2024 Team Lambda Legends. Professional Translation Solutions.</p>
                 <p>Built with React, AWS Lambda, Amazon Translate & S3</p>
               </div>
 

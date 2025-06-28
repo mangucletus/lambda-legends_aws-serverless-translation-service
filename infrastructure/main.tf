@@ -19,16 +19,13 @@ terraform {
   }
 }
 
-# Configure the AWS Provider
 provider "aws" {
   region = var.aws_region
 }
 
-# Data source to get current AWS account ID and region
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Random suffix for unique resource names - use existing if available
 resource "random_string" "suffix" {
   length  = 8
   special = false
@@ -39,7 +36,6 @@ resource "random_string" "suffix" {
   }
 }
 
-# S3 Bucket for storing translation requests
 resource "aws_s3_bucket" "request_bucket" {
   bucket = "${var.project_name}-requests-${random_string.suffix.result}"
 
@@ -50,7 +46,6 @@ resource "aws_s3_bucket" "request_bucket" {
   }
 }
 
-# S3 Bucket for storing translation responses
 resource "aws_s3_bucket" "response_bucket" {
   bucket = "${var.project_name}-responses-${random_string.suffix.result}"
 
@@ -61,7 +56,6 @@ resource "aws_s3_bucket" "response_bucket" {
   }
 }
 
-# S3 Bucket for hosting the React frontend
 resource "aws_s3_bucket" "frontend_bucket" {
   bucket = "${var.project_name}-frontend-${random_string.suffix.result}"
 
@@ -72,7 +66,6 @@ resource "aws_s3_bucket" "frontend_bucket" {
   }
 }
 
-# Configure S3 bucket versioning for request bucket
 resource "aws_s3_bucket_versioning" "request_bucket_versioning" {
   bucket = aws_s3_bucket.request_bucket.id
   versioning_configuration {
@@ -80,7 +73,6 @@ resource "aws_s3_bucket_versioning" "request_bucket_versioning" {
   }
 }
 
-# Configure S3 bucket versioning for response bucket
 resource "aws_s3_bucket_versioning" "response_bucket_versioning" {
   bucket = aws_s3_bucket.response_bucket.id
   versioning_configuration {
@@ -88,7 +80,6 @@ resource "aws_s3_bucket_versioning" "response_bucket_versioning" {
   }
 }
 
-# S3 bucket public access block for request bucket (keep private)
 resource "aws_s3_bucket_public_access_block" "request_bucket_pab" {
   bucket = aws_s3_bucket.request_bucket.id
 
@@ -98,7 +89,6 @@ resource "aws_s3_bucket_public_access_block" "request_bucket_pab" {
   restrict_public_buckets = true
 }
 
-# S3 bucket public access block for response bucket (keep private)
 resource "aws_s3_bucket_public_access_block" "response_bucket_pab" {
   bucket = aws_s3_bucket.response_bucket.id
 
@@ -108,7 +98,6 @@ resource "aws_s3_bucket_public_access_block" "response_bucket_pab" {
   restrict_public_buckets = true
 }
 
-# S3 bucket lifecycle configuration for cost optimization
 resource "aws_s3_bucket_lifecycle_configuration" "request_bucket_lifecycle" {
   bucket = aws_s3_bucket.request_bucket.id
 
@@ -130,7 +119,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "request_bucket_lifecycle" {
   }
 }
 
-# S3 bucket lifecycle configuration for response bucket
 resource "aws_s3_bucket_lifecycle_configuration" "response_bucket_lifecycle" {
   bucket = aws_s3_bucket.response_bucket.id
 
@@ -152,7 +140,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "response_bucket_lifecycle" {
   }
 }
 
-# CORS configuration for request bucket to allow browser uploads
 resource "aws_s3_bucket_cors_configuration" "request_bucket_cors" {
   bucket = aws_s3_bucket.request_bucket.id
 
@@ -165,7 +152,6 @@ resource "aws_s3_bucket_cors_configuration" "request_bucket_cors" {
   }
 }
 
-# CORS configuration for response bucket
 resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
   bucket = aws_s3_bucket.response_bucket.id
 
@@ -178,20 +164,18 @@ resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
   }
 }
 
-# CORS configuration for frontend bucket - ADDED FOR FIX
 resource "aws_s3_bucket_cors_configuration" "frontend_bucket_cors" {
   bucket = aws_s3_bucket.frontend_bucket.id
 
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD"]
-    allowed_origins = ["*"]
+    allowed_origins = ["*"] # In production, replace with your specific domain
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
   }
 }
 
-# DynamoDB table for storing user information and translation history
 resource "aws_dynamodb_table" "user_data" {
   name         = "${var.project_name}-user-data"
   billing_mode = "PAY_PER_REQUEST"
@@ -231,8 +215,7 @@ resource "aws_dynamodb_table" "user_data" {
   }
 }
 
-# DynamoDB table for storing translation metadata
-resource "aws_dynamodb_table" "translation_metadata" {
+resource "aws_dynam odb_table" "translation_metadata" {
   name         = "${var.project_name}-translations"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "translation_id"
@@ -271,7 +254,6 @@ resource "aws_dynamodb_table" "translation_metadata" {
   }
 }
 
-# IAM role for Lambda function
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role-${random_string.suffix.result}"
 
@@ -295,7 +277,6 @@ resource "aws_iam_role" "lambda_role" {
   }
 }
 
-# IAM policy for Lambda function to access AWS services (without DynamoDB)
 resource "aws_iam_policy" "lambda_policy" {
   name        = "${var.project_name}-lambda-policy-${random_string.suffix.result}"
   description = "Policy for Lambda function to access S3, Translate, and CloudWatch"
@@ -350,7 +331,6 @@ resource "aws_iam_policy" "lambda_policy" {
   })
 }
 
-# Separate IAM policy for DynamoDB access
 resource "aws_iam_policy" "lambda_dynamodb_policy" {
   name        = "${var.project_name}-lambda-dynamodb-policy-${random_string.suffix.result}"
   description = "Policy for Lambda function to access DynamoDB"
@@ -379,19 +359,16 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
   })
 }
 
-# Attach policy to Lambda role
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
 }
 
-# Attach DynamoDB policy to Lambda role
 resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
 }
 
-# Archive Lambda function code
 data "archive_file" "lambda_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../lambda"
@@ -399,7 +376,6 @@ data "archive_file" "lambda_zip" {
   excludes    = ["*.pyc", "__pycache__", "*.zip"]
 }
 
-# CloudWatch log group for Lambda function
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name              = "/aws/lambda/${var.project_name}-translate-function"
   retention_in_days = 7
@@ -411,7 +387,6 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   }
 }
 
-# Lambda function for translation processing
 resource "aws_lambda_function" "translate_function" {
   filename      = data.archive_file.lambda_zip.output_path
   function_name = "${var.project_name}-translate-function"
@@ -446,7 +421,6 @@ resource "aws_lambda_function" "translate_function" {
   ]
 }
 
-# Lambda permission to allow S3 to invoke the function
 resource "aws_lambda_permission" "allow_bucket" {
   statement_id  = "AllowExecutionFromS3Bucket"
   action        = "lambda:InvokeFunction"
@@ -455,7 +429,6 @@ resource "aws_lambda_permission" "allow_bucket" {
   source_arn    = aws_s3_bucket.request_bucket.arn
 }
 
-# S3 bucket notification to trigger Lambda function
 resource "aws_s3_bucket_notification" "request_bucket_notification" {
   bucket = aws_s3_bucket.request_bucket.id
 
@@ -469,7 +442,6 @@ resource "aws_s3_bucket_notification" "request_bucket_notification" {
   depends_on = [aws_lambda_permission.allow_bucket]
 }
 
-# Cognito User Pool for authentication - FIXED with username attributes
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 
@@ -483,8 +455,6 @@ resource "aws_cognito_user_pool" "main" {
 
   auto_verified_attributes = ["email"]
   username_attributes      = ["email"]
-
-
 
   account_recovery_setting {
     recovery_mechanism {
@@ -501,7 +471,6 @@ resource "aws_cognito_user_pool" "main" {
     advanced_security_mode = "OFF"
   }
 
-  # FIXED: Schema to support username field
   schema {
     name                = "email"
     attribute_data_type = "String"
@@ -523,7 +492,6 @@ resource "aws_cognito_user_pool" "main" {
   }
 }
 
-# Cognito User Pool Client
 resource "aws_cognito_user_pool_client" "main" {
   name         = "${var.project_name}-user-pool-client"
   user_pool_id = aws_cognito_user_pool.main.id
@@ -540,7 +508,6 @@ resource "aws_cognito_user_pool_client" "main" {
   prevent_user_existence_errors = "ENABLED"
 }
 
-# Cognito Identity Pool
 resource "aws_cognito_identity_pool" "main" {
   identity_pool_name               = "${var.project_name}-identity-pool"
   allow_unauthenticated_identities = false
@@ -557,7 +524,6 @@ resource "aws_cognito_identity_pool" "main" {
   }
 }
 
-# IAM role for authenticated users
 resource "aws_iam_role" "authenticated_role" {
   name = "${var.project_name}-authenticated-role-${random_string.suffix.result}"
 
@@ -589,7 +555,6 @@ resource "aws_iam_role" "authenticated_role" {
   }
 }
 
-# IAM policy for authenticated users - FIXED interpolation issue
 resource "aws_iam_policy" "authenticated_policy" {
   name        = "${var.project_name}-authenticated-policy-${random_string.suffix.result}"
   description = "Policy for authenticated users"
@@ -635,13 +600,11 @@ resource "aws_iam_policy" "authenticated_policy" {
   })
 }
 
-# Attach policy to authenticated role
 resource "aws_iam_role_policy_attachment" "authenticated_policy_attachment" {
   role       = aws_iam_role.authenticated_role.name
   policy_arn = aws_iam_policy.authenticated_policy.arn
 }
 
-# Cognito Identity Pool Role Attachment
 resource "aws_cognito_identity_pool_roles_attachment" "main" {
   identity_pool_id = aws_cognito_identity_pool.main.id
 
@@ -650,7 +613,6 @@ resource "aws_cognito_identity_pool_roles_attachment" "main" {
   }
 }
 
-# API Gateway for Lambda function
 resource "aws_api_gateway_rest_api" "translate_api" {
   name        = "${var.project_name}-translate-api"
   description = "API Gateway for translation service"
@@ -666,14 +628,12 @@ resource "aws_api_gateway_rest_api" "translate_api" {
   }
 }
 
-# API Gateway resource
 resource "aws_api_gateway_resource" "translate_resource" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   parent_id   = aws_api_gateway_rest_api.translate_api.root_resource_id
   path_part   = "translate"
 }
 
-# API Gateway method
 resource "aws_api_gateway_method" "translate_method" {
   rest_api_id   = aws_api_gateway_rest_api.translate_api.id
   resource_id   = aws_api_gateway_resource.translate_resource.id
@@ -681,7 +641,6 @@ resource "aws_api_gateway_method" "translate_method" {
   authorization = "AWS_IAM"
 }
 
-# API Gateway OPTIONS method for CORS
 resource "aws_api_gateway_method" "translate_options" {
   rest_api_id   = aws_api_gateway_rest_api.translate_api.id
   resource_id   = aws_api_gateway_resource.translate_resource.id
@@ -689,7 +648,6 @@ resource "aws_api_gateway_method" "translate_options" {
   authorization = "NONE"
 }
 
-# API Gateway integration
 resource "aws_api_gateway_integration" "translate_integration" {
   rest_api_id             = aws_api_gateway_rest_api.translate_api.id
   resource_id             = aws_api_gateway_resource.translate_resource.id
@@ -699,7 +657,6 @@ resource "aws_api_gateway_integration" "translate_integration" {
   uri                     = aws_lambda_function.translate_function.invoke_arn
 }
 
-# API Gateway OPTIONS integration for CORS
 resource "aws_api_gateway_integration" "translate_options_integration" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -711,7 +668,6 @@ resource "aws_api_gateway_integration" "translate_options_integration" {
   }
 }
 
-# API Gateway method response for POST
 resource "aws_api_gateway_method_response" "translate_response" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -725,7 +681,6 @@ resource "aws_api_gateway_method_response" "translate_response" {
   }
 }
 
-# API Gateway method response for OPTIONS
 resource "aws_api_gateway_method_response" "translate_options_response" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -739,7 +694,6 @@ resource "aws_api_gateway_method_response" "translate_options_response" {
   }
 }
 
-# API Gateway integration response for POST
 resource "aws_api_gateway_integration_response" "translate_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -755,7 +709,6 @@ resource "aws_api_gateway_integration_response" "translate_integration_response"
   depends_on = [aws_api_gateway_integration.translate_integration]
 }
 
-# API Gateway integration response for OPTIONS
 resource "aws_api_gateway_integration_response" "translate_options_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -771,7 +724,6 @@ resource "aws_api_gateway_integration_response" "translate_options_integration_r
   depends_on = [aws_api_gateway_integration.translate_options_integration]
 }
 
-# Lambda permission for API Gateway
 resource "aws_lambda_permission" "api_gateway" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -780,7 +732,6 @@ resource "aws_lambda_permission" "api_gateway" {
   source_arn    = "${aws_api_gateway_rest_api.translate_api.execution_arn}/*/*"
 }
 
-# API Gateway deployment
 resource "aws_api_gateway_deployment" "translate_deployment" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
 
@@ -806,7 +757,6 @@ resource "aws_api_gateway_deployment" "translate_deployment" {
   }
 }
 
-# API Gateway stage
 resource "aws_api_gateway_stage" "translate_stage" {
   deployment_id = aws_api_gateway_deployment.translate_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.translate_api.id
@@ -819,7 +769,6 @@ resource "aws_api_gateway_stage" "translate_stage" {
   }
 }
 
-# CloudFront Origin Access Control for S3
 resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   name                              = "${var.project_name}-frontend-oac"
   description                       = "OAC for frontend S3 bucket"
@@ -828,7 +777,6 @@ resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   signing_protocol                  = "sigv4"
 }
 
-# FIXED: CloudFront distribution with proper MIME type handling
 resource "aws_cloudfront_distribution" "frontend_distribution" {
   origin {
     domain_name              = aws_s3_bucket.frontend_bucket.bucket_regional_domain_name
@@ -859,7 +807,6 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     max_ttl     = 86400
   }
 
-  # FIXED: Special cache behavior for service worker with correct MIME type
   ordered_cache_behavior {
     path_pattern           = "/service-worker.js"
     allowed_methods        = ["GET", "HEAD"]
@@ -878,10 +825,9 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
 
     min_ttl     = 0
     default_ttl = 0
-    max_ttl     = 300 # Cache for 5 minutes only
+    max_ttl     = 300
   }
 
-  # Cache behavior for static assets
   ordered_cache_behavior {
     path_pattern           = "/static/*"
     allowed_methods        = ["GET", "HEAD"]
@@ -902,7 +848,6 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
     max_ttl     = 31536000
   }
 
-  # Cache behavior for manifest.json and other PWA files
   ordered_cache_behavior {
     path_pattern           = "/manifest.json"
     allowed_methods        = ["GET", "HEAD"]
@@ -955,7 +900,6 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   }
 }
 
-# S3 bucket policy for CloudFront access
 resource "aws_s3_bucket_policy" "frontend_bucket_policy" {
   bucket = aws_s3_bucket.frontend_bucket.id
 

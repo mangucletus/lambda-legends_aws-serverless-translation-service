@@ -1,5 +1,5 @@
 # infrastructure/variables.tf
-# Terraform variable definitions for AWS Translate Application
+# ENHANCED: Terraform variable definitions for AWS Translate Application
 
 variable "aws_region" {
   description = "AWS region where resources will be created"
@@ -157,6 +157,8 @@ locals {
       Environment = var.environment
       ManagedBy   = "Terraform"
       CreatedAt   = timestamp()
+      Application = "AWS Translate"
+      Version     = "2.0"
     },
     var.tags
   )

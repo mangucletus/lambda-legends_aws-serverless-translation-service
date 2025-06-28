@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BUCKET="aws-translate-app-responses-ntril60k"
+BUCKET="aws-translate-app-responses-uyxb25a7"
 
 echo "🧹 Emptying bucket: $BUCKET"
 

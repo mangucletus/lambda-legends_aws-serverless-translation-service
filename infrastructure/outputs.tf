@@ -1,5 +1,5 @@
 # infrastructure/outputs.tf
-# Terraform output values for AWS Translate Application
+# ENHANCED: Terraform output values for AWS Translate Application with CI/CD integration
 
 # DynamoDB Table Outputs
 output "user_data_table_name" {
@@ -69,7 +69,7 @@ output "lambda_function_invoke_arn" {
   value       = aws_lambda_function.translate_function.invoke_arn
 }
 
-# Cognito Outputs
+# Cognito Outputs - CRITICAL for frontend configuration
 output "cognito_user_pool_id" {
   description = "ID of the Cognito User Pool"
   value       = aws_cognito_user_pool.main.id
@@ -177,7 +177,7 @@ output "aws_region" {
   value       = data.aws_region.current.name
 }
 
-# Configuration for Frontend Application
+# CRITICAL: Frontend Configuration for CI/CD Pipeline
 output "frontend_config" {
   description = "Configuration object for the React frontend application"
   value = {
@@ -202,6 +202,7 @@ output "project_info" {
     terraform_version    = "~> 1.0"
     aws_provider_version = "~> 5.0"
     deployment_timestamp = timestamp()
+    version              = "2.0"
   }
 }
 
@@ -226,5 +227,17 @@ output "resource_summary" {
       user_data_table            = aws_dynamodb_table.user_data.name
       translation_metadata_table = aws_dynamodb_table.translation_metadata.name
     }
+    cloudfront_distribution = aws_cloudfront_distribution.frontend_distribution.id
+  }
+}
+
+# CI/CD Deployment URLs - for easy access during deployment
+output "deployment_urls" {
+  description = "Important URLs for deployment and testing"
+  value = {
+    frontend_url    = "https://${aws_cloudfront_distribution.frontend_distribution.domain_name}"
+    api_gateway_url = "https://${aws_api_gateway_rest_api.translate_api.id}.execute-api.${data.aws_region.current.name}.amazonaws.com/${var.environment}"
+    cloudwatch_logs = "https://${data.aws_region.current.name}.console.aws.amazon.com/cloudwatch/home?region=${data.aws_region.current.name}#logsV2:log-groups/log-group/%2Faws%2Flambda%2F${aws_lambda_function.translate_function.function_name}"
+    cognito_console = "https://${data.aws_region.current.name}.console.aws.amazon.com/cognito/v2/idp/user-pools/${aws_cognito_user_pool.main.id}/users"
   }
 }

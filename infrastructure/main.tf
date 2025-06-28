@@ -552,9 +552,9 @@ resource "aws_s3_bucket_notification" "request_bucket_notification" {
   depends_on = [aws_lambda_permission.allow_bucket]
 }
 
-# ===== COGNITO AUTHENTICATION =====
+# ===== COGNITO AUTHENTICATION (FIXED FOR EMAIL-ONLY) =====
 
-# ENHANCED: Cognito User Pool with improved configuration for email-only authentication
+# ENHANCED: Cognito User Pool with email-only authentication
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 

@@ -530,16 +530,6 @@ resource "aws_lambda_function" "translate_function" {
   ]
 }
 
-# Dead letter queue for Lambda
-resource "aws_sqs_queue" "lambda_dlq" {
-  name                      = "${var.project_name}-lambda-dlq"
-  message_retention_seconds = 1209600 # 14 days
-
-  tags = merge(local.common_tags, {
-    Name = "Lambda Dead Letter Queue"
-    Type = "Queue"
-  })
-}
 
 # Lambda permission for S3 trigger
 resource "aws_lambda_permission" "allow_bucket" {

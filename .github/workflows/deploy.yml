@@ -172,16 +172,27 @@ jobs:
         cd frontend
         echo "📦 Installing dependencies..."
         
-        # Clean npm cache to avoid any cached conflicts
+        # Show current directory and files
+        echo "📁 Current directory: $(pwd)"
+        echo "📋 Package.json exists: $([ -f package.json ] && echo 'YES' || echo 'NO')"
+        
+        # Clean npm cache and remove any existing node_modules
         npm cache clean --force
+        rm -rf node_modules package-lock.json
         
-        # Install dependencies (will create new package-lock.json if needed)
-        npm install
+        # Install dependencies fresh
+        echo "🔄 Installing fresh dependencies..."
+        npm install --verbose
         
-        # Run audit fix to resolve security issues
-        npm audit fix --force || echo "⚠️ Some audit issues couldn't be auto-fixed (this is normal)"
+        # Verify react-scripts was installed
+        if [ -f "node_modules/.bin/react-scripts" ]; then
+          echo "✅ react-scripts installed successfully"
+        else
+          echo "❌ react-scripts not found, attempting to install explicitly..."
+          npm install react-scripts@5.0.1 --save-dev
+        fi
         
-        echo "✅ Dependencies installed successfully"
+        echo "✅ Dependencies installation completed"
 
     - name: Verify installation
       run: |
@@ -189,34 +200,63 @@ jobs:
         echo "🔍 Verifying installation..."
         
         # Check if key dependencies are installed
-        npm list react react-dom aws-amplify @aws-amplify/ui-react --depth=0 || echo "⚠️ Some optional dependencies may be missing"
+        echo "📋 Checking critical dependencies..."
+        npm list react react-dom aws-amplify @aws-amplify/ui-react react-scripts --depth=0 || echo "⚠️ Some dependencies may be missing"
         
-        # Check if package.json and package-lock.json are now in sync
-        if npm ci --dry-run > /dev/null 2>&1; then
-          echo "✅ Package files are now in sync"
+        # Check if react-scripts exists and is executable
+        if [ -f "node_modules/.bin/react-scripts" ]; then
+          echo "✅ react-scripts binary found"
+          ls -la node_modules/.bin/react-scripts
         else
-          echo "⚠️ Package files still have conflicts, but proceeding with build"
+          echo "❌ react-scripts binary not found"
+          echo "📂 Contents of node_modules/.bin/:"
+          ls -la node_modules/.bin/ | head -10 || echo "node_modules/.bin/ does not exist"
+          exit 1
         fi
+        
+        # Test that react-scripts can be called
+        echo "🧪 Testing react-scripts..."
+        npx react-scripts --version || npm run build --dry-run || echo "⚠️ Could not test react-scripts"
 
     - name: Build React app
       run: |
         cd frontend
         echo "🔨 Building React application..."
         
+        # Show environment info
+        echo "📊 Environment info:"
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        echo "Current directory: $(pwd)"
+        
         # Set build environment variables
         export CI=false
         export GENERATE_SOURCEMAP=false
         export NODE_OPTIONS="--max-old-space-size=4096"
         
-        # Build the application
-        npm run build
+        # Verify react-scripts one more time before building
+        if [ -f "node_modules/.bin/react-scripts" ]; then
+          echo "✅ react-scripts found, proceeding with build"
+        else
+          echo "❌ react-scripts still not found, listing node_modules contents..."
+          ls -la node_modules/ | head -20
+          exit 1
+        fi
+        
+        # Build using npx to ensure we find react-scripts
+        echo "🔨 Starting build process..."
+        npx react-scripts build
         
         # Verify build output
         if [ -f "build/index.html" ]; then
           echo "✅ Build completed successfully"
           echo "📊 Build size: $(du -sh build/ | cut -f1)"
+          echo "📂 Build contents:"
+          ls -la build/
         else
           echo "❌ Build failed - index.html not found"
+          echo "📂 Build directory contents:"
+          ls -la build/ 2>/dev/null || echo "Build directory does not exist"
           exit 1
         fi
 

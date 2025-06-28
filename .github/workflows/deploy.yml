@@ -1,114 +1,23 @@
 # .github/workflows/deploy.yml
-# ENHANCED: GitHub Actions workflow with proper AWS configuration management for CI/CD
+# SIMPLIFIED: Basic CI/CD workflow for AWS Translate Application
 
 name: Deploy AWS Translate Application
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
-  TF_STATE_BUCKET: lambda-legends-terraform-state-bucket-2025
   PROJECT_NAME: aws-translate-app
   ENVIRONMENT: dev
 
 jobs:
-  # Validate and plan Terraform changes
-  terraform-plan:
-    name: Terraform Plan
-    runs-on: ubuntu-latest
-    outputs:
-      tfplan: ${{ steps.plan.outputs.tfplan }}
-      
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ~1.0
-        terraform_wrapper: false
-
-    - name: Validate AWS credentials
-      run: |
-        aws sts get-caller-identity
-        echo "✅ AWS credentials configured successfully"
-
-    - name: Verify Terraform state bucket
-      run: |
-        if aws s3api head-bucket --bucket "${{ env.TF_STATE_BUCKET }}" 2>/dev/null; then
-          echo "✅ Terraform state bucket exists: ${{ env.TF_STATE_BUCKET }}"
-        else
-          echo "❌ Error: Terraform state bucket does not exist: ${{ env.TF_STATE_BUCKET }}"
-          echo "Creating bucket..."
-          aws s3 mb s3://${{ env.TF_STATE_BUCKET }} --region ${{ env.AWS_REGION }}
-          aws s3api put-bucket-versioning --bucket ${{ env.TF_STATE_BUCKET }} --versioning-configuration Status=Enabled
-          echo "✅ Bucket created successfully"
-        fi
-
-    - name: Terraform Init
-      run: |
-        cd infrastructure
-        terraform init
-
-    - name: Terraform Validate
-      run: |
-        cd infrastructure
-        terraform validate
-
-    - name: Terraform Format Check
-      run: |
-        cd infrastructure
-        terraform fmt -check
-
-    - name: Make state management script executable
-      run: |
-        cd infrastructure
-        chmod +x manage_terraform_state.sh
-
-    - name: Manage Terraform State
-      run: |
-        cd infrastructure
-        ./manage_terraform_state.sh
-      env:
-        AWS_REGION: ${{ env.AWS_REGION }}
-
-    - name: Terraform Plan
-      id: plan
-      run: |
-        cd infrastructure
-        terraform plan -out=tfplan \
-          -var="aws_region=${{ env.AWS_REGION }}" \
-          -var="project_name=${{ env.PROJECT_NAME }}" \
-          -var="environment=${{ env.ENVIRONMENT }}" \
-          -detailed-exitcode
-      continue-on-error: true
-
-    - name: Upload Terraform Plan
-      uses: actions/upload-artifact@v4
-      with:
-        name: terraform-plan
-        path: infrastructure/tfplan
-        retention-days: 5
-
   # Deploy infrastructure
-  terraform-apply:
-    name: Terraform Apply
-    needs: terraform-plan
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
     - name: Checkout code
@@ -125,20 +34,19 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ~1.0
-        terraform_wrapper: false
 
     - name: Terraform Init
       run: |
         cd infrastructure
         terraform init
 
-    - name: Manage Terraform State Before Apply
+    - name: Terraform Plan
       run: |
         cd infrastructure
-        chmod +x manage_terraform_state.sh
-        ./manage_terraform_state.sh
-      env:
-        AWS_REGION: ${{ env.AWS_REGION }}
+        terraform plan \
+          -var="aws_region=${{ env.AWS_REGION }}" \
+          -var="project_name=${{ env.PROJECT_NAME }}" \
+          -var="environment=${{ env.ENVIRONMENT }}"
 
     - name: Terraform Apply
       run: |
@@ -152,7 +60,6 @@ jobs:
       id: tf-outputs
       run: |
         cd infrastructure
-        echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
         echo "api_gateway_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
         echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
         echo "cognito_user_pool_client_id=$(terraform output -raw cognito_user_pool_client_id)" >> $GITHUB_OUTPUT
@@ -160,26 +67,34 @@ jobs:
         echo "request_bucket_name=$(terraform output -raw request_bucket_name)" >> $GITHUB_OUTPUT
         echo "response_bucket_name=$(terraform output -raw response_bucket_name)" >> $GITHUB_OUTPUT
         echo "frontend_bucket_name=$(terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
+        echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
 
-    - name: Store Terraform Outputs
+    - name: Save outputs for frontend
       run: |
-        mkdir -p terraform-outputs
-        cd infrastructure
-        terraform output -json > ../terraform-outputs/outputs.json
+        mkdir -p outputs
+        cat > outputs/config.json << EOF
+        {
+          "api_gateway_url": "${{ steps.tf-outputs.outputs.api_gateway_url }}",
+          "cognito_user_pool_id": "${{ steps.tf-outputs.outputs.cognito_user_pool_id }}",
+          "cognito_user_pool_client_id": "${{ steps.tf-outputs.outputs.cognito_user_pool_client_id }}",
+          "cognito_identity_pool_id": "${{ steps.tf-outputs.outputs.cognito_identity_pool_id }}",
+          "request_bucket_name": "${{ steps.tf-outputs.outputs.request_bucket_name }}",
+          "response_bucket_name": "${{ steps.tf-outputs.outputs.response_bucket_name }}",
+          "frontend_bucket_name": "${{ steps.tf-outputs.outputs.frontend_bucket_name }}"
+        }
+        EOF
 
-    - name: Upload Terraform Outputs
+    - name: Upload outputs
       uses: actions/upload-artifact@v4
       with:
         name: terraform-outputs
-        path: terraform-outputs/
-        retention-days: 5
+        path: outputs/
 
   # Build and deploy frontend
   deploy-frontend:
     name: Deploy Frontend
-    needs: terraform-apply
+    needs: deploy-infrastructure
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
     - name: Checkout code
@@ -199,270 +114,65 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    - name: Download Terraform Outputs
+    - name: Download Terraform outputs
       uses: actions/download-artifact@v4
       with:
         name: terraform-outputs
-        path: terraform-outputs/
+        path: outputs/
 
-    # CRITICAL FIX: Create proper AWS configuration for the frontend
-    - name: Create AWS Configuration
+    - name: Create environment file
       run: |
         cd frontend
         
-        # Extract values from Terraform outputs with error checking
-        OUTPUTS_FILE="../terraform-outputs/outputs.json"
+        # Read config from Terraform outputs
+        CONFIG_FILE="../outputs/config.json"
         
-        if [ ! -f "$OUTPUTS_FILE" ]; then
-          echo "❌ Terraform outputs file not found!"
-          exit 1
-        fi
+        API_GATEWAY_URL=$(cat $CONFIG_FILE | jq -r '.api_gateway_url')
+        USER_POOL_ID=$(cat $CONFIG_FILE | jq -r '.cognito_user_pool_id')
+        USER_POOL_CLIENT_ID=$(cat $CONFIG_FILE | jq -r '.cognito_user_pool_client_id')
+        IDENTITY_POOL_ID=$(cat $CONFIG_FILE | jq -r '.cognito_identity_pool_id')
+        REQUEST_BUCKET=$(cat $CONFIG_FILE | jq -r '.request_bucket_name')
+        RESPONSE_BUCKET=$(cat $CONFIG_FILE | jq -r '.response_bucket_name')
         
-        # Extract configuration values
-        COGNITO_USER_POOL_ID=$(cat $OUTPUTS_FILE | jq -r '.cognito_user_pool_id.value // empty')
-        COGNITO_USER_POOL_CLIENT_ID=$(cat $OUTPUTS_FILE | jq -r '.cognito_user_pool_client_id.value // empty')
-        COGNITO_IDENTITY_POOL_ID=$(cat $OUTPUTS_FILE | jq -r '.cognito_identity_pool_id.value // empty')
-        API_GATEWAY_URL=$(cat $OUTPUTS_FILE | jq -r '.api_gateway_url.value // empty')
-        REQUEST_BUCKET=$(cat $OUTPUTS_FILE | jq -r '.request_bucket_name.value // empty')
-        RESPONSE_BUCKET=$(cat $OUTPUTS_FILE | jq -r '.response_bucket_name.value // empty')
-        
-        # Validate all required values are present
-        if [ -z "$COGNITO_USER_POOL_ID" ] || [ -z "$COGNITO_USER_POOL_CLIENT_ID" ] || [ -z "$COGNITO_IDENTITY_POOL_ID" ] || [ -z "$API_GATEWAY_URL" ] || [ -z "$REQUEST_BUCKET" ] || [ -z "$RESPONSE_BUCKET" ]; then
-          echo "❌ Missing required configuration values!"
-          echo "User Pool ID: $COGNITO_USER_POOL_ID"
-          echo "Client ID: $COGNITO_USER_POOL_CLIENT_ID"
-          echo "Identity Pool ID: $COGNITO_IDENTITY_POOL_ID"
-          echo "API Gateway URL: $API_GATEWAY_URL"
-          echo "Request Bucket: $REQUEST_BUCKET"
-          echo "Response Bucket: $RESPONSE_BUCKET"
-          exit 1
-        fi
-        
-        echo "✅ Configuration values extracted successfully"
-        echo "User Pool ID: ${COGNITO_USER_POOL_ID:0:20}..."
-        echo "API Gateway URL: ${API_GATEWAY_URL:0:40}..."
-        
-        # Create the production environment file
+        # Create environment file
         cat > .env.production << EOF
         REACT_APP_AWS_REGION=${{ env.AWS_REGION }}
-        REACT_APP_USER_POOL_ID=${COGNITO_USER_POOL_ID}
-        REACT_APP_USER_POOL_CLIENT_ID=${COGNITO_USER_POOL_CLIENT_ID}
-        REACT_APP_IDENTITY_POOL_ID=${COGNITO_IDENTITY_POOL_ID}
+        REACT_APP_USER_POOL_ID=${USER_POOL_ID}
+        REACT_APP_USER_POOL_CLIENT_ID=${USER_POOL_CLIENT_ID}
+        REACT_APP_IDENTITY_POOL_ID=${IDENTITY_POOL_ID}
         REACT_APP_API_GATEWAY_URL=${API_GATEWAY_URL}
         REACT_APP_REQUEST_BUCKET=${REQUEST_BUCKET}
         REACT_APP_RESPONSE_BUCKET=${RESPONSE_BUCKET}
         EOF
         
-        # Also create .env.local for consistency
-        cp .env.production .env.local
-        
-        echo "✅ Environment files created successfully"
-
-    - name: Verify Environment Configuration
-      run: |
-        cd frontend
-        echo "🔍 Verifying environment configuration..."
-        
-        if [ -f ".env.production" ]; then
-          echo "✅ .env.production exists"
-          echo "📋 Environment variables (masked):"
-          cat .env.production | sed 's/=.*$/=***MASKED***/'
-        else
-          echo "❌ .env.production not found!"
-          exit 1
-        fi
-
-    - name: Ensure public directory structure
-      run: |
-        cd frontend
-        mkdir -p public
-        
-        # Create manifest.json if it doesn't exist
-        if [ ! -f public/manifest.json ]; then
-          cat > public/manifest.json << 'EOF'
-        {
-          "short_name": "AWS Translate",
-          "name": "AWS Translate Application",
-          "start_url": ".",
-          "display": "standalone",
-          "theme_color": "#0073bb",
-          "background_color": "#ffffff"
-        }
-        EOF
-        fi
-        
-        echo "✅ Public directory structure verified"
+        echo "Environment file created successfully"
 
     - name: Install dependencies
       run: |
         cd frontend
-        npm ci --prefer-offline --no-audit
+        npm ci
 
-    - name: Verify package.json and dependencies
+    - name: Build React app
       run: |
         cd frontend
-        echo "📦 Checking package.json..."
-        node -e "const pkg = require('./package.json'); console.log('✅ Package name:', pkg.name); console.log('✅ Version:', pkg.version);"
-        
-        echo "📦 Checking critical dependencies..."
-        npm list aws-amplify @aws-amplify/ui-react react react-dom || echo "⚠️ Some dependencies may not be installed"
-
-    - name: Build React app with enhanced error handling
-      run: |
-        cd frontend
-        echo "🔨 Building React application..."
-        
-        # Set build environment
-        export CI=false
-        export GENERATE_SOURCEMAP=false
-        export NODE_OPTIONS="--max-old-space-size=4096"
-        
-        # Build with error handling
-        if npm run build; then
-          echo "✅ Build completed successfully"
-        else
-          echo "❌ Build failed"
-          echo "📋 Environment variables during build:"
-          env | grep REACT_APP_ || echo "No REACT_APP_ variables found"
-          exit 1
-        fi
-        
-        # Verify build output
-        if [ -f "build/index.html" ]; then
-          echo "✅ index.html created"
-          echo "📏 Build size:"
-          du -sh build/
-        else
-          echo "❌ index.html not found in build output"
-          exit 1
-        fi
-      env:
-        CI: false
-        GENERATE_SOURCEMAP: false
-
-    - name: Get frontend bucket name
-      id: bucket
-      run: |
-        FRONTEND_BUCKET=$(cat terraform-outputs/outputs.json | jq -r '.frontend_bucket_name.value')
-        echo "frontend_bucket=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
+        npm run build
 
     - name: Deploy to S3
       run: |
         cd frontend
-        echo "☁️ Deploying to S3 bucket: ${{ steps.bucket.outputs.frontend_bucket }}"
-        
-        # Sync files to S3
-        aws s3 sync build/ s3://${{ steps.bucket.outputs.frontend_bucket }} --delete --exact-timestamps
-        
-        # Set proper content types for better performance
-        aws s3 cp s3://${{ steps.bucket.outputs.frontend_bucket }}/static/css/ s3://${{ steps.bucket.outputs.frontend_bucket }}/static/css/ --recursive --metadata-directive REPLACE --content-type "text/css" --cache-control "public, max-age=31536000" || echo "CSS files may not exist"
-        aws s3 cp s3://${{ steps.bucket.outputs.frontend_bucket }}/static/js/ s3://${{ steps.bucket.outputs.frontend_bucket }}/static/js/ --recursive --metadata-directive REPLACE --content-type "application/javascript" --cache-control "public, max-age=31536000" || echo "JS files may not exist"
-        
-        echo "✅ Frontend deployed to S3 bucket: ${{ steps.bucket.outputs.frontend_bucket }}"
+        FRONTEND_BUCKET=$(cat ../outputs/config.json | jq -r '.frontend_bucket_name')
+        aws s3 sync build/ s3://${FRONTEND_BUCKET} --delete
 
-    - name: Invalidate CloudFront cache
+    - name: Invalidate CloudFront
       run: |
-        DISTRIBUTION_ID=$(cat terraform-outputs/outputs.json | jq -r '.cloudfront_distribution_id.value')
-        echo "🔄 Invalidating CloudFront cache for distribution: ${DISTRIBUTION_ID}"
-        aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths "/*"
-        echo "✅ CloudFront cache invalidated"
-
-    - name: Get application URLs
-      id: urls
-      run: |
-        FRONTEND_URL=$(cat terraform-outputs/outputs.json | jq -r '.frontend_url.value')
-        API_URL=$(cat terraform-outputs/outputs.json | jq -r '.api_gateway_url.value')
-        echo "frontend_url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
-        echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
-
-    - name: Test deployment
-      run: |
-        FRONTEND_URL=$(cat terraform-outputs/outputs.json | jq -r '.frontend_url.value')
-        echo "🧪 Testing deployment..."
-        
-        # Wait a moment for deployment to propagate
-        sleep 30
-        
-        # Test if the site is accessible
-        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
-        
-        if [ "$HTTP_STATUS" = "200" ]; then
-          echo "✅ Deployment test passed - Site is accessible"
-        else
-          echo "⚠️ Deployment test warning - HTTP status: $HTTP_STATUS"
-          echo "Note: CloudFront may still be propagating. Site should be accessible soon."
+        DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='CloudFront distribution for ${{ env.PROJECT_NAME }} frontend'].Id" --output text)
+        if [ ! -z "$DISTRIBUTION_ID" ]; then
+          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
         fi
 
-    - name: Deployment Summary
+    - name: Deployment complete
       run: |
-        echo "🚀 Deployment completed successfully!"
-        echo ""
-        echo "📱 Frontend URL: ${{ steps.urls.outputs.frontend_url }}"
-        echo "🔗 API Gateway URL: ${{ steps.urls.outputs.api_url }}"
-        echo ""
-        echo "✅ Configuration Status:"
-        echo "   - Cognito User Pool: Configured for email-only authentication"
-        echo "   - Lambda Function: Enhanced with comprehensive error handling"
-        echo "   - S3 Buckets: Request and response buckets ready"
-        echo "   - CloudFront: CDN distribution active"
-        echo ""
-        echo "🎉 Your AWS Translate application is now live!"
-        echo "📋 Users can now:"
-        echo "   - Create accounts with email + password only"
-        echo "   - Login securely through Cognito"
-        echo "   - Translate text with real-time results display"
-        echo "   - Upload JSON files for batch translation"
-        echo "   - View and copy translation results"
-
-  # Security scan
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Run tfsec
-      uses: aquasecurity/tfsec-action@v1.0.3
-      with:
-        working_directory: infrastructure/
-
-    - name: Run TruffleHog OSS
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: main
-        head: HEAD
-
-  # Cleanup on failure
-  cleanup:
-    name: Cleanup on Failure
-    needs: [terraform-plan, terraform-apply, deploy-frontend]
-    runs-on: ubuntu-latest
-    if: failure() && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Notify on failure
-      run: |
-        echo "⚠️ Deployment failed! Please check the logs and fix any issues."
-        echo "Failed jobs may have left partial resources. Consider running terraform destroy if needed."
-        echo ""
-        echo "🔧 Common issues to check:"
-        echo "   - AWS credentials and permissions"
-        echo "   - Terraform state bucket existence"
-        echo "   - Resource naming conflicts"
-        echo "   - AWS service limits"
-        echo "   - Environment variable configuration"
-        echo "   - React build process"
+        FRONTEND_URL=$(cat outputs/config.json | jq -r '.frontend_url' || echo "Check AWS Console")
+        echo "🚀 Deployment completed!"
+        echo "Frontend URL: $FRONTEND_URL"
+        echo "Your AWS Translate application is now live!"

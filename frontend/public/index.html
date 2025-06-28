@@ -7,297 +7,18 @@
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0073bb" />
-    <meta name="description"
-        content="AWS Translate Application - Translate text between multiple languages using AWS services" />
-    <meta name="author" content="AWS Translate App - Team Lambda Legends" />
-    <meta name="keywords" content="translation, AWS, multilingual, language, translate" />
+    <meta name="description" content="AWS Translate Application - Translate text between multiple languages" />
 
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="AWS Translate Application" />
-    <meta property="og:description" content="Translate text between multiple languages using AWS services" />
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content="AWS Translate Application" />
-    <meta property="twitter:description" content="Translate text between multiple languages using AWS services" />
-
-    <!-- Preload fonts for better performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- CRITICAL FIX: Define globals before any scripts load -->
+    <!-- Simple polyfills for browser compatibility -->
     <script>
-        // Fix "process is not defined" error completely
+        // Simple process polyfill for React
         if (typeof global === 'undefined') {
             var global = globalThis || window || self;
         }
-
         if (typeof process === 'undefined') {
-            window.process = {
-                env: {
-                    NODE_ENV: 'production',
-                    REACT_APP_AWS_REGION: '',
-                    REACT_APP_USER_POOL_ID: '',
-                    REACT_APP_USER_POOL_CLIENT_ID: '',
-                    REACT_APP_IDENTITY_POOL_ID: '',
-                    REACT_APP_API_GATEWAY_URL: '',
-                    REACT_APP_REQUEST_BUCKET: '',
-                    REACT_APP_RESPONSE_BUCKET: ''
-                },
-                nextTick: function (callback) {
-                    setTimeout(callback, 0);
-                },
-                version: 'v16.0.0',
-                platform: 'browser'
-            };
+            window.process = { env: { NODE_ENV: 'production' } };
         }
-
-        // Additional polyfills for missing Node.js globals
-        if (typeof Buffer === 'undefined') {
-            window.Buffer = {
-                from: function (str) { return { toString: function () { return str; } }; },
-                isBuffer: function () { return false; }
-            };
-        }
-
-        // Comprehensive error handler that prevents app crashes
-        window.addEventListener('error', function (event) {
-            console.error('🚨 Application error:', event.error);
-
-            // Handle specific known errors gracefully
-            if (event.error && event.error.message) {
-                const errorMessage = event.error.message.toLowerCase();
-
-                // Don't break the app for these non-critical errors
-                if (errorMessage.includes('process is not defined') ||
-                    errorMessage.includes('serviceworker') ||
-                    errorMessage.includes('mime type') ||
-                    errorMessage.includes('logo192') ||
-                    errorMessage.includes('favicon') ||
-                    errorMessage.includes('manifest')) {
-
-                    console.log('🔧 Non-critical error handled gracefully:', event.error.message);
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return false;
-                }
-
-                // Handle syntax errors that might indicate bundle loading issues
-                if (errorMessage.includes('unexpected token') ||
-                    errorMessage.includes('syntax error')) {
-                    console.error('🚨 Critical bundle loading error detected!');
-
-                    // Show fallback UI
-                    setTimeout(function () {
-                        showFallbackUI();
-                    }, 1000);
-
-                    event.preventDefault();
-                    return false;
-                }
-            }
-        });
-
-        // Handle unhandled promise rejections
-        window.addEventListener('unhandledrejection', function (event) {
-            console.warn('🔧 Unhandled promise rejection:', event.reason);
-
-            // Don't break the app for certain promise rejections
-            if (event.reason && typeof event.reason === 'string' &&
-                (event.reason.includes('ServiceWorker') ||
-                    event.reason.includes('manifest') ||
-                    event.reason.includes('icon'))) {
-                event.preventDefault();
-                return false;
-            }
-        });
-
-        // Fallback UI for critical errors
-        function showFallbackUI() {
-            const root = document.getElementById('root');
-            if (root && (!root.hasChildNodes() || root.innerHTML.trim() === '')) {
-                root.innerHTML = `
-                    <div style="
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        min-height: 100vh;
-                        padding: 2rem;
-                        text-align: center;
-                        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-                        font-family: 'Inter', sans-serif;
-                    ">
-                        <div style="
-                            background: white;
-                            padding: 3rem;
-                            border-radius: 16px;
-                            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-                            max-width: 500px;
-                            border: 3px solid #0073bb;
-                        ">
-                            <div style="font-size: 4rem; margin-bottom: 1rem;">🌐</div>
-                            <h1 style="color: #0073bb; margin-bottom: 1rem; font-size: 2rem;">AWS Translate</h1>
-                            <p style="color: #6b7280; margin-bottom: 2rem; font-size: 1.1rem;">
-                                There seems to be a build issue. Please try refreshing the page.
-                            </p>
-                            <button onclick="window.location.reload()" style="
-                                background: #0073bb;
-                                color: white;
-                                border: none;
-                                padding: 1rem 2rem;
-                                border-radius: 8px;
-                                font-size: 1rem;
-                                font-weight: 600;
-                                cursor: pointer;
-                                transition: all 0.2s;
-                            " onmouseover="this.style.background='#005a91'" onmouseout="this.style.background='#0073bb'">
-                                🔄 Refresh Page
-                            </button>
-                            <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                                <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
-                                    <strong>For Developers:</strong> Check the browser console for build errors. 
-                                    The JavaScript bundle may not be loading correctly.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        // Check if React is loading properly
-        setTimeout(function () {
-            const root = document.getElementById('root');
-            if (root && (!root.hasChildNodes() || root.innerHTML.trim() === '')) {
-                console.warn('🔧 React app did not load within expected time');
-                showFallbackUI();
-            }
-        }, 5000);
     </script>
-
-    <!-- CSS Variables for consistent theming -->
-    <style>
-        :root {
-            --primary-color: #0073bb;
-            --primary-dark: #005a91;
-            --secondary-color: #f0f9ff;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --error-color: #ef4444;
-            --text-primary: #1f2937;
-            --text-secondary: #6b7280;
-            --background: #ffffff;
-            --border-color: #e5e7eb;
-            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            background-color: var(--background);
-            color: var(--text-primary);
-            line-height: 1.5;
-        }
-
-        code {
-            font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-        }
-
-        /* Loading animation */
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* CRITICAL: Ensure translation display is always visible */
-        .main-translation-display {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
-            padding: 2rem !important;
-            border-radius: 16px !important;
-            margin: 2rem 0 !important;
-            box-shadow: 0 8px 25px -5px rgba(16, 185, 129, 0.3) !important;
-            border: 3px solid #10b981 !important;
-        }
-
-        .translation-output-section {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-
-        .translated-texts-container {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 1.5rem !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-
-        .translation-item-container,
-        .translation-success-item,
-        .translation-error-item {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-
-        /* Utility classes */
-        .text-center {
-            text-align: center;
-        }
-
-        .mt-4 {
-            margin-top: 1rem;
-        }
-
-        .mb-4 {
-            margin-bottom: 1rem;
-        }
-
-        .p-4 {
-            padding: 1rem;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-            body {
-                font-size: 14px;
-            }
-        }
-    </style>
 
     <title>AWS Translate Application</title>
 </head>
@@ -305,148 +26,98 @@
 <body>
     <noscript>
         <div
-            style="text-align: center; padding: 2rem; background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca;">
+            style="text-align: center; padding: 2rem; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
             <h2>JavaScript Required</h2>
             <p>You need to enable JavaScript to run this application.</p>
-            <p>This AWS Translate application requires JavaScript for authentication, file upload, and translation
-                features.</p>
         </div>
     </noscript>
 
-    <!-- Enhanced loading indicator -->
+    <!-- Loading indicator -->
     <div id="loading-indicator" style="
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      z-index: 9999;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     ">
-        <div class="loading-spinner"></div>
-        <p style="margin-top: 1rem; color: var(--text-secondary); font-weight: 500;">
-            Loading AWS Translate Application...
-        </p>
-        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.8rem;">
-            Initializing translation services
-        </p>
+        <div style="
+            width: 32px;
+            height: 32px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0073bb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        "></div>
+        <p style="color: #666;">Loading AWS Translate Application...</p>
     </div>
 
     <!-- React app will mount here -->
     <div id="root"></div>
 
-    <!-- Enhanced initialization script -->
+    <!-- Hide loading indicator when React loads -->
     <script>
         // Hide loading indicator when React loads
         function hideLoadingIndicator() {
             const loadingIndicator = document.getElementById('loading-indicator');
             if (loadingIndicator) {
-                loadingIndicator.style.opacity = '0';
-                loadingIndicator.style.transition = 'opacity 0.3s ease-out';
-                setTimeout(function () {
-                    loadingIndicator.style.display = 'none';
-                }, 300);
+                loadingIndicator.style.display = 'none';
             }
         }
 
         // Check for React app mounting
         function checkForReactApp() {
             const root = document.getElementById('root');
-            if (root && root.hasChildNodes() && root.innerHTML.trim() !== '') {
+            if (root && root.hasChildNodes()) {
                 hideLoadingIndicator();
-                console.log('✅ React app loaded successfully');
                 return true;
             }
             return false;
         }
 
-        // Multiple checks for React loading
-        window.addEventListener('DOMContentLoaded', function () {
-            setTimeout(function () {
-                if (!checkForReactApp()) {
-                    // Try again after a bit more time
-                    setTimeout(function () {
-                        if (!checkForReactApp()) {
-                            console.warn('🔧 React app taking longer than expected to load');
-                        }
-                    }, 2000);
-                }
-            }, 500);
-        });
-
-        // Mutation observer to detect React mounting
-        if (window.MutationObserver) {
-            const observer = new MutationObserver(function (mutations) {
-                mutations.forEach(function (mutation) {
-                    if (mutation.type === 'childList' && mutation.target.id === 'root') {
-                        if (checkForReactApp()) {
-                            observer.disconnect();
-                        }
-                    }
-                });
-            });
-
-            const root = document.getElementById('root');
-            if (root) {
-                observer.observe(root, { childList: true, subtree: true });
-            }
-        }
-
-        // FIXED: Completely disable service worker to avoid errors
-        if ('serviceWorker' in navigator) {
-            // Unregister any existing service workers
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (let registration of registrations) {
-                    registration.unregister().then(function () {
-                        console.log('🔧 Unregistered existing service worker');
-                    }).catch(function (error) {
-                        console.log('🔧 Service worker unregistration handled:', error.message);
-                    });
-                }
-            }).catch(function (error) {
-                console.log('🔧 Service worker cleanup handled:', error.message);
-            });
-        }
-
-        // Performance monitoring
-        if ('performance' in window) {
-            window.addEventListener('load', function () {
+        // Wait for React to load
+        setTimeout(function () {
+            if (!checkForReactApp()) {
                 setTimeout(function () {
-                    const perfData = performance.getEntriesByType('navigation')[0];
-                    if (perfData) {
-                        const loadTime = Math.round(perfData.loadEventEnd - perfData.fetchStart);
-                        console.log('⚡ Page load time:', loadTime, 'ms');
-
-                        if (loadTime > 5000) {
-                            console.warn('⚠️ Slow page load detected. Consider optimizing assets.');
-                        }
+                    if (!checkForReactApp()) {
+                        hideLoadingIndicator();
+                        // Show simple fallback if React doesn't load
+                        document.getElementById('root').innerHTML = `
+                            <div style="text-align: center; padding: 2rem; font-family: sans-serif;">
+                                <h1 style="color: #0073bb;">🌐 AWS Translate</h1>
+                                <p>Application is loading... Please refresh if it doesn't load.</p>
+                                <button onclick="window.location.reload()" style="
+                                    background: #0073bb; 
+                                    color: white; 
+                                    border: none; 
+                                    padding: 1rem 2rem; 
+                                    border-radius: 4px; 
+                                    cursor: pointer;
+                                    margin-top: 1rem;
+                                ">
+                                    Refresh Page
+                                </button>
+                            </div>
+                        `;
                     }
-                }, 1000);
-            });
-        }
-
-        // Development debug information
-        console.log('%c🚀 AWS Translate Application', 'color: #10b981; font-size: 16px; font-weight: bold;');
-        console.log('%c✅ Error handling and polyfills loaded', 'color: #059669; font-size: 12px;');
-        console.log('%c🔧 Build environment: ' + (process.env.NODE_ENV || 'production'), 'color: #0073bb; font-size: 12px;');
-
-        // Network connectivity check
-        if ('navigator' in window && 'onLine' in navigator) {
-            if (!navigator.onLine) {
-                console.warn('⚠️ No internet connection detected');
+                }, 3000);
             }
+        }, 1000);
 
-            window.addEventListener('online', function () {
-                console.log('✅ Internet connection restored');
-            });
-
-            window.addEventListener('offline', function () {
-                console.warn('⚠️ Internet connection lost');
-            });
-        }
+        // Add CSS animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 

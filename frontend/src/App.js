@@ -1,6 +1,3 @@
-// frontend/src/App.js
-// FIXED: Enhanced App component with proper authentication and translation display
-
 import React from 'react';
 import { Amplify } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
@@ -9,31 +6,38 @@ import TranslationForm from './components/TranslationForm';
 import awsConfig, { validateConfig, SUPPORTED_LANGUAGES } from './aws-config';
 
 // Initialize Amplify with configuration
-Amplify.configure({
-  Auth: {
-    region: awsConfig.region,
-    userPoolId: awsConfig.userPoolId,
-    userPoolWebClientId: awsConfig.userPoolWebClientId,
-    identityPoolId: awsConfig.identityPoolId,
-    mandatorySignIn: true,
-    authenticationFlowType: 'USER_SRP_AUTH',
-  },
-  API: {
-    endpoints: [
-      {
-        name: 'translateApi',
-        endpoint: awsConfig.apiGatewayUrl,
+try {
+  Amplify.configure({
+    Auth: {
+      region: awsConfig.region,
+      userPoolId: awsConfig.userPoolId,
+      userPoolWebClientId: awsConfig.userPoolWebClientId,
+      identityPoolId: awsConfig.identityPoolId,
+      mandatorySignIn: true,
+      authenticationFlowType: 'USER_SRP_AUTH',
+      // Explicitly disable OAuth
+      oauth: null
+    },
+    API: {
+      endpoints: [
+        {
+          name: 'translateApi',
+          endpoint: awsConfig.apiGatewayUrl,
+          region: awsConfig.region,
+        },
+      ],
+    },
+    Storage: {
+      AWSS3: {
+        bucket: awsConfig.requestBucketName,
         region: awsConfig.region,
       },
-    ],
-  },
-  Storage: {
-    AWSS3: {
-      bucket: awsConfig.requestBucketName,
-      region: awsConfig.region,
     },
-  },
-});
+  });
+  console.log('Amplify configured successfully');
+} catch (error) {
+  console.error('Amplify configuration failed:', error);
+}
 
 function App() {
   const configValid = typeof validateConfig === 'function' ? validateConfig() : true;
@@ -77,12 +81,9 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
 
   return (
     <Authenticator
-      // FIXED: Disable social providers and use email-only authentication
       socialProviders={[]}
       variation="default"
       hideSignUp={false}
-      
-      // FIXED: Enhanced form configuration for email-only authentication
       formFields={{
         signIn: {
           username: {
@@ -160,8 +161,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
           },
         },
       }}
-      
-      // FIXED: Custom components with better messaging
       components={{
         Header() {
           return (
@@ -173,7 +172,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             </div>
           );
         },
-        
         Footer() {
           return (
             <div className="authenticator-footer">
@@ -182,7 +180,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             </div>
           );
         },
-        
         SignIn: {
           Header() {
             return (
@@ -206,7 +203,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             );
           }
         },
-        
         SignUp: {
           Header() {
             return (
@@ -231,7 +227,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             );
           }
         },
-        
         ConfirmSignUp: {
           Header() {
             return (
@@ -251,14 +246,15 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
           }
         },
       }}
-      
-      // FIXED: Enhanced login mechanism configuration
       loginMechanisms={['email']}
       signUpAttributes={['email']}
+      // Enhanced error handling
+      onError={(error) => {
+        console.error('Authenticator error:', error);
+      }}
     >
       {({ user, signOut: amplifySignOut }) => (
         <div className="app authenticated-app" data-auth-state="authenticated">
-          {/* Enhanced Header */}
           <header className="app-header">
             <div className="header-content">
               <div className="header-left">
@@ -290,11 +286,9 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                     onClick={async () => {
                       try {
                         await signOut();
-                        // Force page reload to clear any cached state
                         window.location.reload();
                       } catch (error) {
                         console.error('Sign out error:', error);
-                        // Fallback: use Amplify's signOut
                         amplifySignOut();
                       }
                     }} 
@@ -308,10 +302,8 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             </div>
           </header>
 
-          {/* Main Content */}
           <main className="app-main">
             <div className="main-content">
-              {/* Welcome Section */}
               <section className="welcome-section">
                 <div className="welcome-content">
                   <h2>🎯 Ready to Translate</h2>
@@ -337,12 +329,10 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                 </div>
               </section>
 
-              {/* FIXED: Enhanced Translation Interface */}
               <section className="translation-section">
                 <TranslationForm user={user} />
               </section>
 
-              {/* Features Section */}
               <section className="features-section">
                 <h2 className="features-title">🌟 Why Choose AWS Translate?</h2>
                 <div className="features-grid">
@@ -384,7 +374,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
                 </div>
               </section>
 
-              {/* Usage Tips */}
               <section className="tips-section">
                 <h2>💡 Translation Tips</h2>
                 <div className="tips-grid">
@@ -409,7 +398,6 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
             </div>
           </main>
 
-          {/* Enhanced Footer */}
           <footer className="app-footer">
             <div className="footer-content">
               <div className="footer-left">

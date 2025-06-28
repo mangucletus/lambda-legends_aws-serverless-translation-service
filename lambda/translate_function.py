@@ -139,6 +139,18 @@ def handle_api_gateway_event(event: Dict[str, Any], context: Any) -> Dict[str, A
         translation_result['processing_time'] = processing_time
         translation_result['user_id'] = user_id
         
+        # Extract successful translations for easy access
+        successful_translations = []
+        for trans in translation_result.get('translations', []):
+            if trans.get('status') == 'success' and trans.get('translated_text'):
+                successful_translations.append({
+                    'original': trans['original_text'],
+                    'translated': trans['translated_text']
+                })
+        
+        # Add simplified translation array for frontend
+        translation_result['simple_translations'] = successful_translations
+        
         # Save to DynamoDB (optional)
         try:
             metadata = {

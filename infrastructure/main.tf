@@ -178,6 +178,19 @@ resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
   }
 }
 
+# CORS configuration for frontend bucket - ADDED FOR FIX
+resource "aws_s3_bucket_cors_configuration" "frontend_bucket_cors" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
 # DynamoDB table for storing user information and translation history
 resource "aws_dynamodb_table" "user_data" {
   name         = "${var.project_name}-user-data"

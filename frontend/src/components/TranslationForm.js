@@ -766,45 +766,68 @@ const TranslationForm = ({ user }) => {
         </div>
       )}
 
-      {/* NEW: CLEAN TRANSLATION OUTPUT SECTION */}
-      {translatedTexts.length > 0 && (
+      {/* TRANSLATION OUTPUT SECTION - Core Functionality */}
+      {translationResults && translationResults.translations && (
         <div className="translation-output-section">
           <div className="output-header">
-            <h3>✅ Translated Text</h3>
-            <div className="output-actions">
-              <button onClick={copyAllTranslations} className="copy-all-button">
-                📋 Copy All
-              </button>
-            </div>
-          </div>
-          
-          <div className="translation-output-field">
-            <label htmlFor="translation-output">
-              Translation Results ({SUPPORTED_LANGUAGES[sourceLanguage]} → {SUPPORTED_LANGUAGES[targetLanguage]}):
-            </label>
-            <textarea
-              id="translation-output"
-              value={translatedTexts.join('\n')}
-              readOnly
-              rows={Math.max(4, translatedTexts.length)}
-              className="output-textarea"
-              placeholder="Translated text will appear here..."
-            />
+            <h3>✅ Translation Results</h3>
             <div className="output-info">
-              <small>
-                ✅ Successfully translated {translatedTexts.length} text(s) • 
-                Total characters: {translatedTexts.join('').length} • 
-                Click to select all text
-              </small>
+              {translationResults.request_metadata && (
+                <span>
+                  {translationResults.request_metadata.successful_translations} of{' '}
+                  {translationResults.request_metadata.total_texts} translated successfully
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="individual-translations">
-            <h4>Individual Translations:</h4>
-            {translationResults?.translations?.map((translation, index) => (
-              <div key={index} className="translation-pair-display">
-                {translation.status === 'success' && translation.translated_text ? (
-                  <div className="successful-translation">
+          {/* Simple Translation Display */}
+          <div className="translation-output-field">
+            <label htmlFor="translation-output">
+              Translated Text ({SUPPORTED_LANGUAGES[sourceLanguage]} → {SUPPORTED_LANGUAGES[targetLanguage]}):
+            </label>
+            <textarea
+              id="translation-output"
+              value={translationResults.translations
+                .filter(t => t.status === 'success' && t.translated_text)
+                .map(t => t.translated_text)
+                .join('\n')}
+              readOnly
+              rows={Math.max(
+                6,
+                translationResults.translations.filter(t => t.status === 'success').length
+              )}
+              className="output-textarea"
+              placeholder="Translated text will appear here..."
+            />
+            <div className="output-actions">
+              <button
+                onClick={() => {
+                  const translatedTexts = translationResults.translations
+                    .filter(t => t.status === 'success' && t.translated_text)
+                    .map(t => t.translated_text)
+                    .join('\n');
+                  copyToClipboard(translatedTexts);
+                }}
+                className="copy-all-button"
+              >
+                📋 Copy All Translations
+              </button>
+            </div>
+          </div>
+
+          {/* Individual Translation Pairs */}
+          <div className="translation-pairs-display">
+            <h4>Translation Details:</h4>
+            {translationResults.translations.map((translation, index) => (
+              <div
+                key={index}
+                className={`translation-pair-item ${
+                  translation.status === 'success' ? 'success' : 'error'
+                }`}
+              >
+                {translation.status === 'success' ? (
+                  <>
                     <div className="original-text-display">
                       <strong>{SUPPORTED_LANGUAGES[sourceLanguage]}:</strong>
                       <span>{translation.original_text}</span>
@@ -812,8 +835,10 @@ const TranslationForm = ({ user }) => {
                     <div className="arrow-display">→</div>
                     <div className="translated-text-display">
                       <strong>{SUPPORTED_LANGUAGES[targetLanguage]}:</strong>
-                      <span>{translation.translated_text}</span>
-                      <button 
+                      <span className="translated-text-value">
+                        {translation.translated_text}
+                      </span>
+                      <button
                         onClick={() => copyToClipboard(translation.translated_text)}
                         className="copy-individual-button"
                         title="Copy this translation"
@@ -821,14 +846,12 @@ const TranslationForm = ({ user }) => {
                         📋
                       </button>
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <div className="failed-translation">
-                    <div className="error-display">
-                      <strong>❌ Original:</strong> {translation.original_text}
-                      <br />
-                      <strong>Error:</strong> {translation.error || 'Translation failed'}
-                    </div>
+                  <div className="translation-error-display">
+                    <strong>❌ Failed:</strong> {translation.original_text}
+                    <br />
+                    <small>Error: {translation.error || 'Translation failed'}</small>
                   </div>
                 )}
               </div>

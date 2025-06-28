@@ -1,98 +1,116 @@
 // frontend/src/aws-config.js
-// AWS configuration for the React application
+// FIXED: AWS configuration for the React application
 // This file will be automatically updated by the CI/CD pipeline
 
-// Default configuration for local development
-// These values will be replaced during deployment
-const awsConfig = {
-  // AWS Region where resources are deployed
-  region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
+// Configuration validation function
+const getConfigValue = (envVar, fallback, configName) => {
+  const value = process.env[envVar] || fallback;
+  if (value && !value.includes('XXXXXXXX') && !value.includes('XXXXXXXXXX')) {
+    return value;
+  }
   
-  // Cognito User Pool ID for authentication
-  userPoolId: process.env.REACT_APP_USER_POOL_ID || 'us-east-1_XXXXXXXXX',
-  
-  // Cognito User Pool Client ID
-  userPoolWebClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID || 'XXXXXXXXXXXXXXXXXXXXXXXXXX',
-  
-  // Cognito Identity Pool ID for AWS resource access
-  identityPoolId: process.env.REACT_APP_IDENTITY_POOL_ID || 'us-east-1:XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
-  
-  // API Gateway URL for translation service
-  apiGatewayUrl: process.env.REACT_APP_API_GATEWAY_URL || 'https://XXXXXXXXXX.execute-api.us-east-1.amazonaws.com/dev',
-  
-  // S3 bucket for storing translation requests
-  requestBucketName: process.env.REACT_APP_REQUEST_BUCKET || 'aws-translate-app-requests-XXXXXXXX',
-  
-  // S3 bucket for storing translation responses
-  responseBucketName: process.env.REACT_APP_RESPONSE_BUCKET || 'aws-translate-app-responses-XXXXXXXX',
-  
-  // CloudFront URL for the frontend (optional)
-  cloudfrontUrl: process.env.REACT_APP_CLOUDFRONT_URL || 'https://XXXXXXXXXXXXXX.cloudfront.net'
+  console.error(`❌ Invalid ${configName}: ${value}`);
+  console.error(`Please check your deployment or set ${envVar} environment variable`);
+  return value; // Return anyway for development, but log the error
 };
 
-// Validation function to check if configuration is properly set
+// AWS configuration with proper validation
+const awsConfig = {
+  // AWS Region where resources are deployed
+  region: getConfigValue('REACT_APP_AWS_REGION', 'us-east-1', 'AWS Region'),
+  
+  // Cognito User Pool ID for authentication
+  userPoolId: getConfigValue('REACT_APP_USER_POOL_ID', 'us-east-1_XXXXXXXXX', 'User Pool ID'),
+  
+  // Cognito User Pool Client ID
+  userPoolWebClientId: getConfigValue('REACT_APP_USER_POOL_CLIENT_ID', 'XXXXXXXXXXXXXXXXXXXXXXXXXX', 'User Pool Client ID'),
+  
+  // Cognito Identity Pool ID for AWS resource access
+  identityPoolId: getConfigValue('REACT_APP_IDENTITY_POOL_ID', 'us-east-1:XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', 'Identity Pool ID'),
+  
+  // API Gateway URL for translation service
+  apiGatewayUrl: getConfigValue('REACT_APP_API_GATEWAY_URL', 'https://XXXXXXXXXX.execute-api.us-east-1.amazonaws.com/dev', 'API Gateway URL'),
+  
+  // S3 bucket for storing translation requests
+  requestBucketName: getConfigValue('REACT_APP_REQUEST_BUCKET', 'aws-translate-app-requests-XXXXXXXX', 'Request Bucket'),
+  
+  // S3 bucket for storing translation responses
+  responseBucketName: getConfigValue('REACT_APP_RESPONSE_BUCKET', 'aws-translate-app-responses-XXXXXXXX', 'Response Bucket'),
+  
+  // CloudFront URL for the frontend (optional)
+  cloudfrontUrl: getConfigValue('REACT_APP_CLOUDFRONT_URL', 'https://XXXXXXXXXXXXXX.cloudfront.net', 'CloudFront URL')
+};
+
+// Enhanced validation function
 export const validateConfig = () => {
   const requiredFields = [
-    'region',
-    'userPoolId',
-    'userPoolWebClientId',
-    'identityPoolId',
-    'apiGatewayUrl',
-    'requestBucketName',
-    'responseBucketName'
+    { field: 'region', value: awsConfig.region },
+    { field: 'userPoolId', value: awsConfig.userPoolId },
+    { field: 'userPoolWebClientId', value: awsConfig.userPoolWebClientId },
+    { field: 'identityPoolId', value: awsConfig.identityPoolId },
+    { field: 'apiGatewayUrl', value: awsConfig.apiGatewayUrl },
+    { field: 'requestBucketName', value: awsConfig.requestBucketName },
+    { field: 'responseBucketName', value: awsConfig.responseBucketName }
   ];
   
-  const missingFields = requiredFields.filter(field => {
-    const value = awsConfig[field];
+  const invalidFields = requiredFields.filter(({field, value}) => {
     return !value || value.includes('XXXXXXXX') || value.includes('XXXXXXXXXX');
   });
   
-  if (missingFields.length > 0) {
-    console.warn('AWS configuration incomplete. Missing or default values for:', missingFields);
+  if (invalidFields.length > 0) {
+    console.warn('⚠️ AWS configuration incomplete. Invalid fields:', invalidFields.map(f => f.field));
     
     // In development, show a helpful message
     if (process.env.NODE_ENV === 'development') {
       console.log(`
-🔧 Development Setup Required:
+🔧 DEVELOPMENT SETUP REQUIRED:
 
-To run this application locally, you need to:
+❌ Configuration Issues Found:
+${invalidFields.map(f => `   - ${f.field}: ${f.value}`).join('\n')}
 
-1. Deploy the infrastructure using Terraform:
+✅ To fix this:
+
+1. Deploy infrastructure first:
    cd infrastructure && terraform apply
 
-2. Update this file (aws-config.js) with the actual values from Terraform outputs:
-   terraform output -json
+2. Get the outputs:
+   terraform output -json > outputs.json
 
-3. Or set environment variables in a .env file:
+3. Set environment variables in .env file:
    REACT_APP_AWS_REGION=us-east-1
-   REACT_APP_USER_POOL_ID=your-user-pool-id
-   REACT_APP_USER_POOL_CLIENT_ID=your-client-id
-   REACT_APP_IDENTITY_POOL_ID=your-identity-pool-id
-   REACT_APP_API_GATEWAY_URL=your-api-gateway-url
-   REACT_APP_REQUEST_BUCKET=your-request-bucket
-   REACT_APP_RESPONSE_BUCKET=your-response-bucket
+   REACT_APP_USER_POOL_ID=<your-user-pool-id>
+   REACT_APP_USER_POOL_CLIENT_ID=<your-client-id>
+   REACT_APP_IDENTITY_POOL_ID=<your-identity-pool-id>
+   REACT_APP_API_GATEWAY_URL=<your-api-gateway-url>
+   REACT_APP_REQUEST_BUCKET=<your-request-bucket>
+   REACT_APP_RESPONSE_BUCKET=<your-response-bucket>
 
-Note: The CI/CD pipeline will automatically update this configuration during deployment.
+4. Or manually update this file with the real values
+
+📝 The CI/CD pipeline will automatically populate these during deployment.
       `);
     }
     
     return false;
   }
   
+  console.log('✅ AWS configuration is valid');
   return true;
 };
 
-// Log configuration status
+// Configuration status logging
+const configStatus = {
+  region: awsConfig.region !== 'us-east-1' ? '✅ Custom region' : '⚠️ Default region',
+  userPoolId: !awsConfig.userPoolId.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing',
+  userPoolWebClientId: !awsConfig.userPoolWebClientId.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing',
+  identityPoolId: !awsConfig.identityPoolId.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing',
+  apiGatewayUrl: !awsConfig.apiGatewayUrl.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing',
+  requestBucketName: !awsConfig.requestBucketName.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing',
+  responseBucketName: !awsConfig.responseBucketName.includes('XXXXXXXX') ? '✅ Set' : '❌ Missing'
+};
+
 if (process.env.NODE_ENV === 'development') {
-  console.log('AWS Configuration:', {
-    region: awsConfig.region,
-    userPoolId: awsConfig.userPoolId ? '✅ Set' : '❌ Missing',
-    userPoolWebClientId: awsConfig.userPoolWebClientId ? '✅ Set' : '❌ Missing',
-    identityPoolId: awsConfig.identityPoolId ? '✅ Set' : '❌ Missing',
-    apiGatewayUrl: awsConfig.apiGatewayUrl ? '✅ Set' : '❌ Missing',
-    requestBucketName: awsConfig.requestBucketName ? '✅ Set' : '❌ Missing',
-    responseBucketName: awsConfig.responseBucketName ? '✅ Set' : '❌ Missing'
-  });
+  console.log('🔧 AWS Configuration Status:', configStatus);
 }
 
 // Supported languages for the translation service
@@ -187,5 +205,14 @@ export const COMMON_LANGUAGE_PAIRS = [
   { source: 'de', target: 'en', label: 'German → English' },
   { source: 'zh', target: 'en', label: 'Chinese → English' }
 ];
+
+// Helper function to get configuration for debugging
+export const getConfigurationInfo = () => ({
+  isValid: validateConfig(),
+  configuration: awsConfig,
+  status: configStatus,
+  environment: process.env.NODE_ENV,
+  timestamp: new Date().toISOString()
+});
 
 export default awsConfig;

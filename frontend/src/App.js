@@ -2,10 +2,38 @@
 // FIXED: Enhanced App component with proper authentication and translation display
 
 import React from 'react';
+import { Amplify } from 'aws-amplify';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { signOut } from 'aws-amplify/auth';
 import TranslationForm from './components/TranslationForm';
 import awsConfig, { validateConfig, SUPPORTED_LANGUAGES } from './aws-config';
+
+// Initialize Amplify with configuration
+Amplify.configure({
+  Auth: {
+    region: awsConfig.region,
+    userPoolId: awsConfig.userPoolId,
+    userPoolWebClientId: awsConfig.userPoolWebClientId,
+    identityPoolId: awsConfig.identityPoolId,
+    mandatorySignIn: true,
+    authenticationFlowType: 'USER_SRP_AUTH',
+  },
+  API: {
+    endpoints: [
+      {
+        name: 'translateApi',
+        endpoint: awsConfig.apiGatewayUrl,
+        region: awsConfig.region,
+      },
+    ],
+  },
+  Storage: {
+    AWSS3: {
+      bucket: awsConfig.requestBucketName,
+      region: awsConfig.region,
+    },
+  },
+});
 
 function App() {
   const configValid = typeof validateConfig === 'function' ? validateConfig() : true;

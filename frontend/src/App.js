@@ -460,3 +460,5 @@ REACT_APP_RESPONSE_BUCKET=your-response-bucket`}</pre>
 }
 
 export default App;
+
+// Note: Ensure you have the necessary CSS styles in place for the classes used above

@@ -1,5 +1,5 @@
 # lambda/translate_function.py
-# FIXED: Enhanced AWS Lambda function with proper CORS and authentication handling
+# FIXED: Corrected response format for frontend compatibility
 
 import json
 import boto3
@@ -26,7 +26,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Enhanced Lambda handler with proper CORS and authentication."""
+    """Enhanced Lambda handler with FIXED response format."""
     
     request_id = context.aws_request_id if context else str(uuid.uuid4())
     
@@ -34,15 +34,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         print(f"🚀 Starting translation request: {request_id}")
         print(f"📋 Event: {json.dumps(event, default=str)[:500]}...")
         
-        # Handle CORS preflight - IMPORTANT for browser requests
+        # Handle CORS preflight
         if event.get('httpMethod') == 'OPTIONS':
             print("✈️ Handling CORS preflight request")
             return create_cors_response(200, {'message': 'CORS preflight successful'})
-        
-        # Log authentication info if available
-        request_context = event.get('requestContext', {})
-        identity = request_context.get('identity', {})
-        print(f"🔐 Request identity: user={identity.get('user', 'unknown')}, source_ip={identity.get('sourceIp', 'unknown')}")
         
         # Parse request body
         request_data = parse_request_body(event)
@@ -73,6 +68,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         print("🔄 Starting translation process...")
         translation_result = perform_translation(request_data, translation_id, request_id)
         
+        # FIXED: Return the correct format for frontend
+        frontend_response = {
+            'request_metadata': translation_result['request_metadata'],
+            'translations': translation_result['translations'],
+            'summary': translation_result['summary']
+        }
+        
+        print(f"📊 Frontend response format: {json.dumps(frontend_response, default=str)[:200]}...")
+        
         # Save to S3 buckets (don't fail if this doesn't work)
         try:
             print("💾 Saving request and response to S3...")
@@ -83,7 +87,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Don't fail the translation if S3 save fails
         
         print(f"🎉 Translation completed successfully: {translation_result['request_metadata']['successful_translations']} successful")
-        return create_cors_response(200, translation_result)
+        return create_cors_response(200, frontend_response)
         
     except Exception as e:
         error_msg = str(e)
@@ -377,7 +381,7 @@ def save_request_and_response(request_data: Dict[str, Any], translation_result: 
         )
         print(f"✅ Request saved: s3://{REQUEST_BUCKET}/{request_key}")
         
-        # Save response to response bucket
+        # Save response to response bucket  
         response_key = f"responses/response-{timestamp}-{translation_id[:8]}.json"
         response_object = {
             'translation_result': translation_result,
@@ -419,13 +423,11 @@ if __name__ == "__main__":
         },
         'body': json.dumps({
             'source_language': 'en',
-            'target_language': 'es',
+            'target_language': 'fr',
             'texts': [
-                'Hello, world!',
+                'Good morning',
                 'How are you today?',
-                'This is a test translation with enhanced functionality.',
-                'The application should now work correctly with proper CORS headers.',
-                'Translation results will be saved to both request and response buckets.'
+                'This is a test translation.'
             ]
         })
     }
@@ -437,7 +439,7 @@ if __name__ == "__main__":
     os.environ['REQUEST_BUCKET'] = 'test-request-bucket'
     os.environ['RESPONSE_BUCKET'] = 'test-response-bucket'
     
-    print("🧪 Testing enhanced Lambda function...")
+    print("🧪 Testing fixed Lambda function...")
     result = lambda_handler(test_event, MockContext())
     print("📊 Test Result:")
     print(json.dumps(result, indent=2, default=str))

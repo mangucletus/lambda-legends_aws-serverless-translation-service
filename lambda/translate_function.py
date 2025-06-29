@@ -1,5 +1,5 @@
 # lambda/translate_function.py
-# ENHANCED: Fixed AWS Lambda function with proper translation logic
+# FIXED: Enhanced AWS Lambda function with proper CORS and authentication handling
 
 import json
 import boto3
@@ -26,7 +26,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Enhanced Lambda handler with proper error handling and logging."""
+    """Enhanced Lambda handler with proper CORS and authentication."""
     
     request_id = context.aws_request_id if context else str(uuid.uuid4())
     
@@ -34,16 +34,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         print(f"🚀 Starting translation request: {request_id}")
         print(f"📋 Event: {json.dumps(event, default=str)[:500]}...")
         
-        # Handle CORS preflight
+        # Handle CORS preflight - IMPORTANT for browser requests
         if event.get('httpMethod') == 'OPTIONS':
             print("✈️ Handling CORS preflight request")
-            return create_response(200, {'message': 'CORS preflight successful'})
+            return create_cors_response(200, {'message': 'CORS preflight successful'})
+        
+        # Log authentication info if available
+        request_context = event.get('requestContext', {})
+        identity = request_context.get('identity', {})
+        print(f"🔐 Request identity: user={identity.get('user', 'unknown')}, source_ip={identity.get('sourceIp', 'unknown')}")
         
         # Parse request body
         request_data = parse_request_body(event)
         if not request_data:
             print("❌ No request data provided")
-            return create_response(400, {
+            return create_cors_response(400, {
                 'error': 'Request body is required',
                 'example': {
                     'source_language': 'en',
@@ -58,7 +63,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         validation_error = validate_request(request_data)
         if validation_error:
             print(f"❌ Validation error: {validation_error}")
-            return create_response(400, {'error': validation_error})
+            return create_cors_response(400, {'error': validation_error})
         
         # Generate translation ID
         translation_id = str(uuid.uuid4())
@@ -66,9 +71,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Perform translation
         print("🔄 Starting translation process...")
-        translation_result = perform_translation(request_data, translation_id)
+        translation_result = perform_translation(request_data, translation_id, request_id)
         
-        # Save to S3 buckets
+        # Save to S3 buckets (don't fail if this doesn't work)
         try:
             print("💾 Saving request and response to S3...")
             save_request_and_response(request_data, translation_result, translation_id)
@@ -78,35 +83,45 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Don't fail the translation if S3 save fails
         
         print(f"🎉 Translation completed successfully: {translation_result['request_metadata']['successful_translations']} successful")
-        return create_response(200, translation_result)
+        return create_cors_response(200, translation_result)
         
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Critical error: {error_msg}")
         print(f"🔍 Traceback: {traceback.format_exc()}")
         
-        return create_response(500, {
+        return create_cors_response(500, {
             'error': f"Translation service error: {error_msg}",
             'request_id': request_id,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'help': 'Please check your request format and try again'
         })
 
 
-def create_response(status_code: int, body_data: Any) -> Dict[str, Any]:
-    """Create API Gateway response with proper CORS headers."""
-    response = {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
-            'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,PUT,DELETE',
-            'Access-Control-Allow-Credentials': 'false'
-        },
-        'body': json.dumps(body_data, default=str, ensure_ascii=False)
+def create_cors_response(status_code: int, body_data: Any) -> Dict[str, Any]:
+    """Create API Gateway response with comprehensive CORS headers."""
+    
+    # Comprehensive CORS headers to fix browser issues
+    headers = {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,Cache-Control,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS,PUT,DELETE',
+        'Access-Control-Allow-Credentials': 'false',
+        'Access-Control-Max-Age': '86400',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
     }
     
-    print(f"📤 Response: {status_code} - {json.dumps(body_data, default=str)[:200]}...")
+    response = {
+        'statusCode': status_code,
+        'headers': headers,
+        'body': json.dumps(body_data, default=str, ensure_ascii=False, indent=2),
+        'isBase64Encoded': False
+    }
+    
+    print(f"📤 Response: {status_code} - Body size: {len(response['body'])} chars")
     return response
 
 
@@ -118,7 +133,7 @@ def parse_request_body(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             print("⚠️ No body in request")
             return None
         
-        print(f"📋 Raw body: {str(body)[:200]}...")
+        print(f"📋 Raw body type: {type(body)}, length: {len(str(body))}")
         
         # Handle base64 encoded body
         if event.get('isBase64Encoded'):
@@ -137,6 +152,7 @@ def parse_request_body(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         
     except json.JSONDecodeError as e:
         print(f"❌ JSON decode error: {e}")
+        print(f"📄 Raw body content: {str(body)[:200]}...")
         return None
     except Exception as e:
         print(f"❌ Error parsing request body: {e}")
@@ -194,7 +210,7 @@ def validate_request(request_data: Dict[str, Any]) -> Optional[str]:
         return f"Validation error: {str(e)}"
 
 
-def perform_translation(request_data: Dict[str, Any], translation_id: str) -> Dict[str, Any]:
+def perform_translation(request_data: Dict[str, Any], translation_id: str, request_id: str) -> Dict[str, Any]:
     """Enhanced translation with retry logic and better error handling."""
     
     source_lang = request_data['source_language']
@@ -309,12 +325,14 @@ def perform_translation(request_data: Dict[str, Any], translation_id: str) -> Di
             'successful_translations': successful_count,
             'failed_translations': failed_count,
             'timestamp': datetime.now().isoformat(),
-            'translation_id': translation_id
+            'translation_id': translation_id,
+            'request_id': request_id
         },
         'translations': translations,
         'summary': {
             'success_rate': success_rate,
-            'total_characters_translated': total_characters
+            'total_characters_translated': total_characters,
+            'processing_time_seconds': None  # Could add timing if needed
         }
     }
     
@@ -333,7 +351,7 @@ def save_request_and_response(request_data: Dict[str, Any], translation_result: 
     
     try:
         # Save request to request bucket
-        request_key = f"request-{timestamp}-{translation_id[:8]}.json"
+        request_key = f"requests/request-{timestamp}-{translation_id[:8]}.json"
         request_object = {
             'request_data': request_data,
             'metadata': {
@@ -341,20 +359,26 @@ def save_request_and_response(request_data: Dict[str, Any], translation_result: 
                 'timestamp': datetime.now().isoformat(),
                 'source_language': request_data.get('source_language'),
                 'target_language': request_data.get('target_language'),
-                'text_count': len(request_data.get('texts', []))
+                'text_count': len(request_data.get('texts', [])),
+                'bucket_type': 'request'
             }
         }
         
         s3_client.put_object(
             Bucket=REQUEST_BUCKET,
             Key=request_key,
-            Body=json.dumps(request_object, indent=2, ensure_ascii=False),
-            ContentType='application/json'
+            Body=json.dumps(request_object, indent=2, ensure_ascii=False, default=str),
+            ContentType='application/json; charset=utf-8',
+            Metadata={
+                'translation-id': translation_id,
+                'source-language': request_data.get('source_language', ''),
+                'target-language': request_data.get('target_language', '')
+            }
         )
         print(f"✅ Request saved: s3://{REQUEST_BUCKET}/{request_key}")
         
         # Save response to response bucket
-        response_key = f"response-{timestamp}-{translation_id[:8]}.json"
+        response_key = f"responses/response-{timestamp}-{translation_id[:8]}.json"
         response_object = {
             'translation_result': translation_result,
             'original_request': request_data,
@@ -362,15 +386,21 @@ def save_request_and_response(request_data: Dict[str, Any], translation_result: 
                 'translation_id': translation_id,
                 'timestamp': datetime.now().isoformat(),
                 'processed_by': 'lambda',
-                'version': '2.0'
+                'version': '2.0',
+                'bucket_type': 'response'
             }
         }
         
         s3_client.put_object(
             Bucket=RESPONSE_BUCKET,
             Key=response_key,
-            Body=json.dumps(response_object, indent=2, ensure_ascii=False),
-            ContentType='application/json'
+            Body=json.dumps(response_object, indent=2, ensure_ascii=False, default=str),
+            ContentType='application/json; charset=utf-8',
+            Metadata={
+                'translation-id': translation_id,
+                'successful-translations': str(translation_result['request_metadata']['successful_translations']),
+                'total-texts': str(translation_result['request_metadata']['total_texts'])
+            }
         )
         print(f"✅ Response saved: s3://{RESPONSE_BUCKET}/{response_key}")
         
@@ -384,13 +414,18 @@ if __name__ == "__main__":
     # Test event
     test_event = {
         'httpMethod': 'POST',
+        'headers': {
+            'Content-Type': 'application/json'
+        },
         'body': json.dumps({
             'source_language': 'en',
             'target_language': 'es',
             'texts': [
                 'Hello, world!',
                 'How are you today?',
-                'This is a test translation with enhanced functionality.'
+                'This is a test translation with enhanced functionality.',
+                'The application should now work correctly with proper CORS headers.',
+                'Translation results will be saved to both request and response buckets.'
             ]
         })
     }

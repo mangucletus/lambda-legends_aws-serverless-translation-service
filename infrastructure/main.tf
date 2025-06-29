@@ -1,5 +1,5 @@
 # infrastructure/main.tf
-# SIMPLIFIED: Core infrastructure for AWS Translate Application
+# FIXED: Enhanced infrastructure with proper CORS and API Gateway configuration
 
 terraform {
   required_version = ">= 1.0"
@@ -55,30 +55,146 @@ resource "aws_s3_bucket" "frontend_bucket" {
   bucket = "${var.project_name}-frontend-${random_string.suffix.result}"
 }
 
-# S3 bucket CORS for API access
+# S3 bucket CORS configuration for all buckets
+# Request bucket CORS - for translation request uploads
 resource "aws_s3_bucket_cors_configuration" "request_bucket_cors" {
   bucket = aws_s3_bucket.request_bucket.id
 
   cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
+    allowed_headers = [
+      "*",
+      "Authorization",
+      "Content-Type",
+      "X-Amz-Date",
+      "X-Amz-Security-Token",
+      "X-Amz-User-Agent",
+      "x-amz-content-sha256",
+      "x-amz-date",
+      "x-amz-user-agent"
+    ]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
     allowed_origins = ["*"]
-    max_age_seconds = 3000
+    expose_headers  = ["ETag", "x-amz-meta-custom-header"]
+    max_age_seconds = 3600
+  }
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET"]
+    allowed_origins = ["*"]
+    max_age_seconds = 3600
   }
 }
 
+# Response bucket CORS - for translation response downloads
 resource "aws_s3_bucket_cors_configuration" "response_bucket_cors" {
   bucket = aws_s3_bucket.response_bucket.id
 
   cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
+    allowed_headers = [
+      "*",
+      "Authorization",
+      "Content-Type",
+      "X-Amz-Date",
+      "X-Amz-Security-Token",
+      "X-Amz-User-Agent",
+      "x-amz-content-sha256",
+      "x-amz-date",
+      "x-amz-user-agent"
+    ]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
     allowed_origins = ["*"]
-    max_age_seconds = 3000
+    expose_headers  = ["ETag", "x-amz-meta-custom-header"]
+    max_age_seconds = 3600
+  }
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET"]
+    allowed_origins = ["*"]
+    max_age_seconds = 3600
   }
 }
 
-# ===== IAM ROLES =====
+# Frontend bucket CORS - for frontend asset serving and potential uploads
+resource "aws_s3_bucket_cors_configuration" "frontend_bucket_cors" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  cors_rule {
+    allowed_headers = [
+      "*",
+      "Authorization",
+      "Content-Type",
+      "X-Amz-Date",
+      "X-Amz-Security-Token",
+      "X-Amz-User-Agent",
+      "x-amz-content-sha256",
+      "x-amz-date",
+      "x-amz-user-agent"
+    ]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag", "x-amz-meta-custom-header", "x-amz-version-id"]
+    max_age_seconds = 3600
+  }
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["*"]
+    max_age_seconds = 86400
+  }
+}
+
+# S3 bucket public access block settings
+resource "aws_s3_bucket_public_access_block" "request_bucket_pab" {
+  bucket = aws_s3_bucket.request_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_public_access_block" "response_bucket_pab" {
+  bucket = aws_s3_bucket.response_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_public_access_block" "frontend_bucket_pab" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# S3 bucket versioning
+resource "aws_s3_bucket_versioning" "request_bucket_versioning" {
+  bucket = aws_s3_bucket.request_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "response_bucket_versioning" {
+  bucket = aws_s3_bucket.response_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "frontend_bucket_versioning" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
 
 # Lambda execution role
 resource "aws_iam_role" "lambda_role" {
@@ -296,12 +412,16 @@ resource "aws_cognito_identity_pool_roles_attachment" "main" {
   }
 }
 
-# ===== API GATEWAY =====
+# ===== API GATEWAY WITH FIXED CORS =====
 
 # REST API
 resource "aws_api_gateway_rest_api" "translate_api" {
   name        = "${var.project_name}-translate-api"
   description = "API Gateway for translation service"
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
 }
 
 # API resource
@@ -374,7 +494,7 @@ resource "aws_api_gateway_method_response" "translate_options_response" {
   }
 }
 
-# Integration responses
+# Integration responses with FIXED CORS headers
 resource "aws_api_gateway_integration_response" "translate_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.translate_api.id
   resource_id = aws_api_gateway_resource.translate_resource.id
@@ -394,10 +514,11 @@ resource "aws_api_gateway_integration_response" "translate_options_integration_r
   http_method = aws_api_gateway_method.translate_options.http_method
   status_code = aws_api_gateway_method_response.translate_options_response.status_code
 
+  # FIXED: Include all necessary headers for AWS Amplify/Cognito
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,Cache-Control'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS,PUT,DELETE'"
   }
 
   depends_on = [aws_api_gateway_integration.translate_options_integration]
@@ -418,14 +539,20 @@ resource "aws_api_gateway_deployment" "translate_deployment" {
 
   depends_on = [
     aws_api_gateway_method.translate_method,
-    aws_api_gateway_integration.translate_integration
+    aws_api_gateway_integration.translate_integration,
+    aws_api_gateway_method.translate_options,
+    aws_api_gateway_integration.translate_options_integration,
+    aws_api_gateway_integration_response.translate_integration_response,
+    aws_api_gateway_integration_response.translate_options_integration_response
   ]
 
   triggers = {
     redeployment = sha1(jsonencode([
       aws_api_gateway_resource.translate_resource.id,
       aws_api_gateway_method.translate_method.id,
-      aws_api_gateway_integration.translate_integration.id
+      aws_api_gateway_integration.translate_integration.id,
+      aws_api_gateway_method.translate_options.id,
+      aws_api_gateway_integration.translate_options_integration.id
     ]))
   }
 
@@ -508,7 +635,7 @@ resource "aws_cloudfront_distribution" "frontend_distribution" {
   }
 }
 
-# S3 bucket policy for CloudFront
+# S3 bucket policy for CloudFront (Frontend bucket)
 resource "aws_s3_bucket_policy" "frontend_bucket_policy" {
   bucket = aws_s3_bucket.frontend_bucket.id
 
@@ -530,4 +657,86 @@ resource "aws_s3_bucket_policy" "frontend_bucket_policy" {
       }
     ]
   })
+}
+
+# S3 bucket policy for request bucket (for authenticated users)
+resource "aws_s3_bucket_policy" "request_bucket_policy" {
+  bucket = aws_s3_bucket.request_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.authenticated_role.arn
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "${aws_s3_bucket.request_bucket.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.lambda_role.arn
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.request_bucket.arn,
+          "${aws_s3_bucket.request_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+
+  depends_on = [aws_s3_bucket_public_access_block.request_bucket_pab]
+}
+
+# S3 bucket policy for response bucket (for authenticated users)
+resource "aws_s3_bucket_policy" "response_bucket_policy" {
+  bucket = aws_s3_bucket.response_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.authenticated_role.arn
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.response_bucket.arn,
+          "${aws_s3_bucket.response_bucket.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.lambda_role.arn
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.response_bucket.arn,
+          "${aws_s3_bucket.response_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+
+  depends_on = [aws_s3_bucket_public_access_block.response_bucket_pab]
 }

@@ -1,5 +1,5 @@
 // frontend/src/components/TranslationForm.js
-// ENHANCED: Fixed translation functionality with better API integration and error handling
+// FIXED: Complete translation form with proper API integration and response handling
 
 import React, { useState } from 'react';
 import { uploadData } from 'aws-amplify/storage';
@@ -50,11 +50,20 @@ const TranslationForm = ({ user }) => {
     setTimeout(() => setMessage(null), 5000);
   };
 
-  // Enhanced API call function
+  // FIXED: Enhanced API call function with proper error handling
   const callTranslationAPI = async (requestData) => {
     try {
       console.log('📡 Calling translation API with data:', requestData);
       
+      // Validate request data before sending
+      if (!requestData.source_language || !requestData.target_language || !requestData.texts) {
+        throw new Error('Invalid request data: missing required fields');
+      }
+
+      if (!Array.isArray(requestData.texts) || requestData.texts.length === 0) {
+        throw new Error('Invalid request data: texts must be a non-empty array');
+      }
+
       const response = await post({
         apiName: 'TranslateAPI',
         path: '/translate',
@@ -69,18 +78,19 @@ const TranslationForm = ({ user }) => {
 
       console.log('📡 Raw API response:', response);
 
-      // Handle different response formats
+      // FIXED: Properly handle the response
       let translationData;
-      if (response && response.response) {
-        // If response is wrapped
+      
+      // Handle promise-based response
+      if (response && typeof response.then === 'function') {
+        translationData = await response;
+      } else if (response && response.response) {
+        // Handle wrapped response
         if (typeof response.response.then === 'function') {
           translationData = await response.response;
         } else {
           translationData = response.response;
         }
-      } else if (response && response.then) {
-        // If response is a promise
-        translationData = await response;
       } else {
         // Direct response
         translationData = response;
@@ -97,24 +107,41 @@ const TranslationForm = ({ user }) => {
         throw new Error(translationData.error);
       }
 
+      // Check if translations array exists
+      if (!translationData.translations || !Array.isArray(translationData.translations)) {
+        throw new Error('Invalid response: missing translations array');
+      }
+
       return translationData;
 
     } catch (error) {
       console.error('❌ API call failed:', error);
       
-      // Enhanced error messages
+      // Enhanced error handling
+      let errorMessage = 'Unknown error occurred';
+      
       if (error.response) {
+        // API response error
         const errorData = error.response.data || error.response;
-        throw new Error(errorData.error || errorData.message || 'API request failed');
+        errorMessage = errorData.error || errorData.message || 'API request failed';
       } else if (error.message) {
-        throw new Error(error.message);
-      } else {
-        throw new Error('Network error - please check your connection');
+        // Network or other error
+        if (error.message.includes('CORS')) {
+          errorMessage = 'CORS error - please check API configuration';
+        } else if (error.message.includes('NetworkError')) {
+          errorMessage = 'Network error - please check your internet connection';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Failed to reach translation service - please try again';
+        } else {
+          errorMessage = error.message;
+        }
       }
+      
+      throw new Error(errorMessage);
     }
   };
 
-  // Handle text translation
+  // FIXED: Handle text translation with better error handling
   const handleTextTranslation = async () => {
     if (!textInput.trim()) {
       showMessage('Please enter some text to translate', 'error');
@@ -153,8 +180,8 @@ const TranslationForm = ({ user }) => {
       // Call translation API
       const translationData = await callTranslationAPI(requestData);
       
-      // Process successful translations
-      if (translationData.translations) {
+      // FIXED: Process successful translations correctly
+      if (translationData.translations && Array.isArray(translationData.translations)) {
         const successfulTranslations = translationData.translations
           .filter(t => t.status === 'success' && t.translated_text && t.translated_text.trim())
           .map(t => t.translated_text);
@@ -170,7 +197,16 @@ const TranslationForm = ({ user }) => {
           
           showMessage(`🎉 Successfully translated ${successCount} of ${totalCount} text(s)!`);
         } else {
-          throw new Error('No successful translations received. Please check your input and try again.');
+          // Check if there were any translations at all
+          const allTranslations = translationData.translations || [];
+          if (allTranslations.length > 0) {
+            // Show failed translations info
+            const failedTranslations = allTranslations.filter(t => t.status === 'error');
+            const errorMessages = failedTranslations.map(t => t.error).join(', ');
+            throw new Error(`Translation failed: ${errorMessages}`);
+          } else {
+            throw new Error('No translations received from the service');
+          }
         }
       } else {
         throw new Error('Invalid response format: missing translations data');
@@ -185,7 +221,7 @@ const TranslationForm = ({ user }) => {
     }
   };
 
-  // Handle file translation
+  // FIXED: Handle file translation with better error handling
   const handleFileTranslation = async () => {
     if (!file) {
       showMessage('Please select a JSON file', 'error');
@@ -241,7 +277,7 @@ const TranslationForm = ({ user }) => {
       const translationData = await callTranslationAPI(requestData);
 
       // Process successful translations
-      if (translationData.translations) {
+      if (translationData.translations && Array.isArray(translationData.translations)) {
         const successfulTranslations = translationData.translations
           .filter(t => t.status === 'success' && t.translated_text && t.translated_text.trim())
           .map(t => t.translated_text);
@@ -519,7 +555,7 @@ const TranslationForm = ({ user }) => {
         </div>
       )}
 
-      {/* Translation Results - PROMINENT DISPLAY */}
+      {/* FIXED: Translation Results - PROMINENT DISPLAY */}
       {translatedTexts.length > 0 && (
         <div className="translation-results-section">
           <div className="results-header">

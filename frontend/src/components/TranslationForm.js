@@ -1,5 +1,5 @@
 // frontend/src/components/TranslationForm.js
-// ULTRA ROBUST: Handles ANY possible response format from the API
+// FIXED: Proper AWS Amplify v6 API response handling for translations
 
 import React, { useState } from 'react';
 import { uploadData } from 'aws-amplify/storage';
@@ -50,84 +50,13 @@ const TranslationForm = ({ user }) => {
     setTimeout(() => setMessage(null), 5000);
   };
 
-  // ULTRA ROBUST: Extract translations from ANY possible response format
-  const extractTranslationsFromResponse = (data) => {
-    console.log('🔍 ULTRA ROBUST: Analyzing response structure...', data);
-    
-    // Define all possible paths where translations might be located
-    const possiblePaths = [
-      // Direct paths
-      { path: 'translations', label: 'Direct translations array' },
-      { path: 'translation_result.translations', label: 'Nested in translation_result' },
-      { path: 'data.translations', label: 'Nested in data' },
-      { path: 'response.translations', label: 'Nested in response' },
-      { path: 'body.translations', label: 'Nested in body' },
-      { path: 'result.translations', label: 'Nested in result' },
-      
-      // Lambda-specific paths (based on S3 structure)
-      { path: 'translation_result.translations', label: 'Lambda translation_result format' },
-      
-      // Edge cases
-      { path: 'content.translations', label: 'Nested in content' },
-      { path: 'payload.translations', label: 'Nested in payload' }
-    ];
-
-    // Helper function to get nested property
-    const getNestedProperty = (obj, path) => {
-      return path.split('.').reduce((current, key) => {
-        return current && current[key] !== undefined ? current[key] : null;
-      }, obj);
-    };
-
-    // Try each possible path
-    for (const { path, label } of possiblePaths) {
-      const translations = getNestedProperty(data, path);
-      console.log(`🔍 Checking ${label} (${path}):`, translations);
-      
-      if (Array.isArray(translations) && translations.length > 0) {
-        console.log(`✅ Found translations at ${label}:`, translations);
-        
-        // Validate that these are actual translation objects
-        const validTranslations = translations.filter(t => 
-          t && 
-          typeof t === 'object' && 
-          t.hasOwnProperty('translated_text') && 
-          t.hasOwnProperty('original_text')
-        );
-        
-        if (validTranslations.length > 0) {
-          console.log(`✅ Valid translations found: ${validTranslations.length} items`);
-          return validTranslations;
-        }
-      }
-    }
-
-    // If no valid translations array found, check if data itself is an array
-    if (Array.isArray(data)) {
-      console.log('🔍 Data itself is an array, checking if it contains translations...');
-      const validTranslations = data.filter(t => 
-        t && 
-        typeof t === 'object' && 
-        t.hasOwnProperty('translated_text')
-      );
-      
-      if (validTranslations.length > 0) {
-        console.log('✅ Data array contains valid translations');
-        return validTranslations;
-      }
-    }
-
-    console.error('❌ No valid translations array found in any expected location');
-    console.error('📋 Full response structure:', JSON.stringify(data, null, 2));
-    return null;
-  };
-
-  // ULTRA ROBUST: Enhanced API call function
+  // FIXED: Proper AWS Amplify v6 API call with correct response handling
   const callTranslationAPI = async (requestData) => {
     try {
       console.log('📡 Calling translation API with data:', requestData);
       
-      const response = await post({
+      // AWS Amplify v6 post call
+      const restOperation = post({
         apiName: 'TranslateAPI',
         path: '/translate',
         options: {
@@ -139,41 +68,16 @@ const TranslationForm = ({ user }) => {
         }
       });
 
-      console.log('📡 Raw API response type:', typeof response);
-      console.log('📡 Raw API response:', response);
-
-      // ULTRA ROBUST: Handle multiple response formats
-      let translationData = response;
-
-      // Handle promise-based response
-      if (response && typeof response.then === 'function') {
-        console.log('🔄 Response is a promise, awaiting...');
-        translationData = await response;
-        console.log('📊 Promise resolved to:', translationData);
-      }
-
-      // Handle wrapped response
-      if (translationData && translationData.response) {
-        console.log('🔄 Response is wrapped, extracting...');
-        if (typeof translationData.response.then === 'function') {
-          translationData = await translationData.response;
-        } else {
-          translationData = translationData.response;
-        }
-        console.log('📊 Unwrapped response:', translationData);
-      }
-
-      // Handle string responses (JSON strings)
-      if (typeof translationData === 'string') {
-        console.log('🔄 Response is a string, parsing JSON...');
-        try {
-          translationData = JSON.parse(translationData);
-          console.log('📊 Parsed JSON:', translationData);
-        } catch (parseError) {
-          console.error('❌ Failed to parse JSON string:', parseError);
-          throw new Error('Invalid JSON response from server');
-        }
-      }
+      console.log('📡 API operation created, awaiting response...');
+      
+      // CRITICAL FIX: Proper Amplify v6 response handling
+      const { body } = await restOperation.response;
+      console.log('📡 Got response body object:', typeof body);
+      
+      // Extract JSON from response body
+      const translationData = await body.json();
+      console.log('📡 Parsed JSON response:', translationData);
+      console.log('📊 Response structure keys:', Object.keys(translationData));
 
       // Validate response
       if (!translationData || typeof translationData !== 'object') {
@@ -184,32 +88,48 @@ const TranslationForm = ({ user }) => {
         throw new Error(translationData.error);
       }
 
-      // ULTRA ROBUST: Extract translations from any possible format
-      const translations = extractTranslationsFromResponse(translationData);
+      // FIXED: Direct extraction - the response should have the correct structure
+      const translations = translationData.translations;
       
-      if (!translations || !Array.isArray(translations) || translations.length === 0) {
-        console.error('❌ No valid translations found in response');
-        console.error('📋 Response structure:', translationData);
-        throw new Error('Invalid response: no valid translations found');
+      if (!Array.isArray(translations)) {
+        console.error('❌ Translations is not an array:', typeof translations);
+        console.error('📋 Full response structure:', translationData);
+        throw new Error('Invalid response: translations field is not an array');
       }
 
-      console.log('✅ Successfully extracted translations:', translations);
+      if (translations.length === 0) {
+        console.error('❌ Empty translations array');
+        console.error('📋 Full response structure:', translationData);
+        throw new Error('Invalid response: empty translations array');
+      }
 
-      // Extract metadata if available (from any possible location)
-      const metadata = translationData.request_metadata || 
-                      translationData.translation_result?.request_metadata || 
-                      translationData.metadata || 
-                      {};
+      // Validate translation objects
+      const validTranslations = translations.filter(t => 
+        t && 
+        typeof t === 'object' && 
+        t.hasOwnProperty('translated_text') && 
+        t.hasOwnProperty('original_text') &&
+        t.status === 'success'
+      );
 
-      const summary = translationData.summary || 
-                     translationData.translation_result?.summary || 
-                     {};
+      if (validTranslations.length === 0) {
+        console.error('❌ No valid translations found');
+        console.error('📋 All translations:', translations);
+        throw new Error('No valid translations found in response');
+      }
 
-      // Return normalized format
+      console.log(`✅ Successfully extracted ${validTranslations.length} valid translations`);
+      
+      // Log each successful translation for debugging
+      validTranslations.forEach((translation, index) => {
+        console.log(`✅ Translation ${index + 1}: "${translation.original_text}" → "${translation.translated_text}"`);
+      });
+
+      // Return normalized format exactly as expected
       return {
-        translations: translations,
-        request_metadata: metadata,
-        summary: summary
+        translations: translations, // Return all translations (successful and failed)
+        request_metadata: translationData.request_metadata || {},
+        summary: translationData.summary || {}
       };
 
     } catch (error) {
@@ -217,9 +137,14 @@ const TranslationForm = ({ user }) => {
       
       let errorMessage = 'Unknown error occurred';
       
+      // Handle AWS Amplify error structure
       if (error.response) {
-        const errorData = error.response.data || error.response;
-        errorMessage = errorData.error || errorData.message || 'API request failed';
+        try {
+          const errorBody = await error.response.body.json();
+          errorMessage = errorBody.error || errorBody.message || 'API request failed';
+        } catch (parseError) {
+          errorMessage = 'API request failed with unknown error format';
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -264,7 +189,7 @@ const TranslationForm = ({ user }) => {
         console.warn('⚠️ Failed to save request to S3:', s3Error);
       }
 
-      // Call translation API
+      // Call translation API with fixed response handling
       const translationData = await callTranslationAPI(requestData);
       
       // Extract successful translations
@@ -314,7 +239,7 @@ const TranslationForm = ({ user }) => {
     }
   };
 
-  // Handle file translation (similar robustness)
+  // Handle file translation (similar fixes applied)
   const handleFileTranslation = async () => {
     if (!file) {
       showMessage('Please select a JSON file', 'error');
@@ -366,7 +291,7 @@ const TranslationForm = ({ user }) => {
         console.warn('⚠️ Failed to save file to S3:', s3Error);
       }
 
-      // Call translation API with same robust handling
+      // Call translation API with fixed response handling
       const translationData = await callTranslationAPI(requestData);
 
       // Process successful translations

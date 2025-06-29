@@ -1,11 +1,11 @@
 // frontend/src/components/TranslationForm.js
-// ROBUST: Translation form that handles multiple API response formats
+// ULTRA ROBUST: Handles ANY possible response format from the API
 
 import React, { useState } from 'react';
 import { uploadData } from 'aws-amplify/storage';
 import { post } from 'aws-amplify/api';
 
-// Enhanced language list - most common languages
+// Enhanced language list
 const LANGUAGES = {
   'en': 'English',
   'es': 'Spanish', 
@@ -50,20 +50,83 @@ const TranslationForm = ({ user }) => {
     setTimeout(() => setMessage(null), 5000);
   };
 
-  // ROBUST: Enhanced API call function with comprehensive response handling
+  // ULTRA ROBUST: Extract translations from ANY possible response format
+  const extractTranslationsFromResponse = (data) => {
+    console.log('🔍 ULTRA ROBUST: Analyzing response structure...', data);
+    
+    // Define all possible paths where translations might be located
+    const possiblePaths = [
+      // Direct paths
+      { path: 'translations', label: 'Direct translations array' },
+      { path: 'translation_result.translations', label: 'Nested in translation_result' },
+      { path: 'data.translations', label: 'Nested in data' },
+      { path: 'response.translations', label: 'Nested in response' },
+      { path: 'body.translations', label: 'Nested in body' },
+      { path: 'result.translations', label: 'Nested in result' },
+      
+      // Lambda-specific paths (based on S3 structure)
+      { path: 'translation_result.translations', label: 'Lambda translation_result format' },
+      
+      // Edge cases
+      { path: 'content.translations', label: 'Nested in content' },
+      { path: 'payload.translations', label: 'Nested in payload' }
+    ];
+
+    // Helper function to get nested property
+    const getNestedProperty = (obj, path) => {
+      return path.split('.').reduce((current, key) => {
+        return current && current[key] !== undefined ? current[key] : null;
+      }, obj);
+    };
+
+    // Try each possible path
+    for (const { path, label } of possiblePaths) {
+      const translations = getNestedProperty(data, path);
+      console.log(`🔍 Checking ${label} (${path}):`, translations);
+      
+      if (Array.isArray(translations) && translations.length > 0) {
+        console.log(`✅ Found translations at ${label}:`, translations);
+        
+        // Validate that these are actual translation objects
+        const validTranslations = translations.filter(t => 
+          t && 
+          typeof t === 'object' && 
+          t.hasOwnProperty('translated_text') && 
+          t.hasOwnProperty('original_text')
+        );
+        
+        if (validTranslations.length > 0) {
+          console.log(`✅ Valid translations found: ${validTranslations.length} items`);
+          return validTranslations;
+        }
+      }
+    }
+
+    // If no valid translations array found, check if data itself is an array
+    if (Array.isArray(data)) {
+      console.log('🔍 Data itself is an array, checking if it contains translations...');
+      const validTranslations = data.filter(t => 
+        t && 
+        typeof t === 'object' && 
+        t.hasOwnProperty('translated_text')
+      );
+      
+      if (validTranslations.length > 0) {
+        console.log('✅ Data array contains valid translations');
+        return validTranslations;
+      }
+    }
+
+    console.error('❌ No valid translations array found in any expected location');
+    console.error('📋 Full response structure:', JSON.stringify(data, null, 2));
+    return null;
+  };
+
+  // ULTRA ROBUST: Enhanced API call function
   const callTranslationAPI = async (requestData) => {
     try {
       console.log('📡 Calling translation API with data:', requestData);
       
-      // Validate request data before sending
-      if (!requestData.source_language || !requestData.target_language || !requestData.texts) {
-        throw new Error('Invalid request data: missing required fields');
-      }
-
-      if (!Array.isArray(requestData.texts) || requestData.texts.length === 0) {
-        throw new Error('Invalid request data: texts must be a non-empty array');
-      }
-
       const response = await post({
         apiName: 'TranslateAPI',
         path: '/translate',
@@ -76,14 +139,43 @@ const TranslationForm = ({ user }) => {
         }
       });
 
+      console.log('📡 Raw API response type:', typeof response);
       console.log('📡 Raw API response:', response);
 
-      // ROBUST: Handle the response with multiple possible formats
-      let translationData = await extractTranslationData(response);
+      // ULTRA ROBUST: Handle multiple response formats
+      let translationData = response;
 
-      console.log('📊 Processed translation data:', translationData);
+      // Handle promise-based response
+      if (response && typeof response.then === 'function') {
+        console.log('🔄 Response is a promise, awaiting...');
+        translationData = await response;
+        console.log('📊 Promise resolved to:', translationData);
+      }
 
-      // Validate response structure
+      // Handle wrapped response
+      if (translationData && translationData.response) {
+        console.log('🔄 Response is wrapped, extracting...');
+        if (typeof translationData.response.then === 'function') {
+          translationData = await translationData.response;
+        } else {
+          translationData = translationData.response;
+        }
+        console.log('📊 Unwrapped response:', translationData);
+      }
+
+      // Handle string responses (JSON strings)
+      if (typeof translationData === 'string') {
+        console.log('🔄 Response is a string, parsing JSON...');
+        try {
+          translationData = JSON.parse(translationData);
+          console.log('📊 Parsed JSON:', translationData);
+        } catch (parseError) {
+          console.error('❌ Failed to parse JSON string:', parseError);
+          throw new Error('Invalid JSON response from server');
+        }
+      }
+
+      // Validate response
       if (!translationData || typeof translationData !== 'object') {
         throw new Error('Invalid response format from translation service');
       }
@@ -92,118 +184,51 @@ const TranslationForm = ({ user }) => {
         throw new Error(translationData.error);
       }
 
-      // ROBUST: Extract translations array from multiple possible locations
-      const translations = extractTranslationsArray(translationData);
+      // ULTRA ROBUST: Extract translations from any possible format
+      const translations = extractTranslationsFromResponse(translationData);
       
-      if (!translations || !Array.isArray(translations)) {
-        console.error('❌ No valid translations array found in response:', translationData);
-        throw new Error('Invalid response: missing translations array');
+      if (!translations || !Array.isArray(translations) || translations.length === 0) {
+        console.error('❌ No valid translations found in response');
+        console.error('📋 Response structure:', translationData);
+        throw new Error('Invalid response: no valid translations found');
       }
 
       console.log('✅ Successfully extracted translations:', translations);
 
+      // Extract metadata if available (from any possible location)
+      const metadata = translationData.request_metadata || 
+                      translationData.translation_result?.request_metadata || 
+                      translationData.metadata || 
+                      {};
+
+      const summary = translationData.summary || 
+                     translationData.translation_result?.summary || 
+                     {};
+
       // Return normalized format
       return {
         translations: translations,
-        request_metadata: translationData.request_metadata || {},
-        summary: translationData.summary || {}
+        request_metadata: metadata,
+        summary: summary
       };
 
     } catch (error) {
       console.error('❌ API call failed:', error);
       
-      // Enhanced error handling
       let errorMessage = 'Unknown error occurred';
       
       if (error.response) {
-        // API response error
         const errorData = error.response.data || error.response;
         errorMessage = errorData.error || errorData.message || 'API request failed';
       } else if (error.message) {
-        // Network or other error
-        if (error.message.includes('CORS')) {
-          errorMessage = 'CORS error - please check API configuration';
-        } else if (error.message.includes('NetworkError')) {
-          errorMessage = 'Network error - please check your internet connection';
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Failed to reach translation service - please try again';
-        } else {
-          errorMessage = error.message;
-        }
+        errorMessage = error.message;
       }
       
       throw new Error(errorMessage);
     }
   };
 
-  // ROBUST: Extract translation data from various response formats
-  const extractTranslationData = async (response) => {
-    let translationData;
-    
-    try {
-      // Handle promise-based response
-      if (response && typeof response.then === 'function') {
-        translationData = await response;
-      } else if (response && response.response) {
-        // Handle wrapped response
-        if (typeof response.response.then === 'function') {
-          translationData = await response.response;
-        } else {
-          translationData = response.response;
-        }
-      } else {
-        // Direct response
-        translationData = response;
-      }
-
-      // If the response is a string, try to parse it as JSON
-      if (typeof translationData === 'string') {
-        try {
-          translationData = JSON.parse(translationData);
-        } catch (parseError) {
-          console.warn('Failed to parse response as JSON:', parseError);
-        }
-      }
-
-      return translationData;
-    } catch (error) {
-      console.error('Error extracting translation data:', error);
-      throw new Error('Failed to process API response');
-    }
-  };
-
-  // ROBUST: Extract translations array from multiple possible response formats
-  const extractTranslationsArray = (data) => {
-    console.log('🔍 Extracting translations from data:', data);
-    
-    // Try different possible locations for translations array
-    const possiblePaths = [
-      data.translations,                    // Direct: { translations: [...] }
-      data.translation_result?.translations,  // Nested: { translation_result: { translations: [...] } }
-      data.data?.translations,             // Wrapped: { data: { translations: [...] } }
-      data.response?.translations,         // Alternative: { response: { translations: [...] } }
-      data.body?.translations,             // Body wrapped: { body: { translations: [...] } }
-    ];
-
-    for (let i = 0; i < possiblePaths.length; i++) {
-      const translations = possiblePaths[i];
-      if (Array.isArray(translations) && translations.length > 0) {
-        console.log(`✅ Found translations array at path ${i}:`, translations);
-        return translations;
-      }
-    }
-
-    // If no array found, check if the data itself is an array
-    if (Array.isArray(data)) {
-      console.log('✅ Data itself is translations array:', data);
-      return data;
-    }
-
-    console.error('❌ No translations array found in any expected location');
-    return null;
-  };
-
-  // ROBUST: Handle text translation with enhanced error handling
+  // Handle text translation
   const handleTextTranslation = async () => {
     if (!textInput.trim()) {
       showMessage('Please enter some text to translate', 'error');
@@ -216,7 +241,7 @@ const TranslationForm = ({ user }) => {
 
     try {
       const texts = textInput.split('\n').filter(line => line.trim());
-      console.log(`🚀 Starting translation for ${texts.length} texts`);
+      console.log(`🚀 Starting translation for ${texts.length} texts:`, texts);
       
       const requestData = {
         source_language: sourceLanguage,
@@ -226,7 +251,7 @@ const TranslationForm = ({ user }) => {
 
       console.log('📝 Request data:', requestData);
 
-      // Save request to S3 (optional - don't fail if it doesn't work)
+      // Save request to S3 (optional)
       try {
         const requestKey = `text-request-${Date.now()}.json`;
         await uploadData({
@@ -242,7 +267,7 @@ const TranslationForm = ({ user }) => {
       // Call translation API
       const translationData = await callTranslationAPI(requestData);
       
-      // ROBUST: Process successful translations
+      // Extract successful translations
       if (translationData.translations && Array.isArray(translationData.translations)) {
         const successfulTranslations = translationData.translations
           .filter(t => t && t.status === 'success' && t.translated_text && t.translated_text.trim())
@@ -259,17 +284,15 @@ const TranslationForm = ({ user }) => {
           
           showMessage(`🎉 Successfully translated ${successCount} of ${totalCount} text(s)!`);
           
-          // Log individual translations for debugging
+          // Log each translation for debugging
           translationData.translations.forEach((translation, index) => {
             if (translation.status === 'success') {
-              console.log(`Translation ${index + 1}: "${translation.original_text}" → "${translation.translated_text}"`);
+              console.log(`✅ Translation ${index + 1}: "${translation.original_text}" → "${translation.translated_text}"`);
             }
           });
         } else {
-          // Check if there were any translations at all
           const allTranslations = translationData.translations || [];
           if (allTranslations.length > 0) {
-            // Show failed translations info
             const failedTranslations = allTranslations.filter(t => t.status === 'error');
             const errorMessages = failedTranslations.map(t => t.error).join(', ');
             throw new Error(`Translation failed: ${errorMessages}`);
@@ -291,7 +314,7 @@ const TranslationForm = ({ user }) => {
     }
   };
 
-  // ROBUST: Handle file translation with enhanced error handling
+  // Handle file translation (similar robustness)
   const handleFileTranslation = async () => {
     if (!file) {
       showMessage('Please select a JSON file', 'error');
@@ -306,7 +329,7 @@ const TranslationForm = ({ user }) => {
       console.log('📁 Processing file:', file.name);
       
       const fileContent = await readFileAsText(file);
-      console.log('📄 File content:', fileContent.substring(0, 200) + '...');
+      console.log('📄 File content preview:', fileContent.substring(0, 200) + '...');
       
       let requestData;
       try {
@@ -343,7 +366,7 @@ const TranslationForm = ({ user }) => {
         console.warn('⚠️ Failed to save file to S3:', s3Error);
       }
 
-      // Call translation API
+      // Call translation API with same robust handling
       const translationData = await callTranslationAPI(requestData);
 
       // Process successful translations
@@ -625,7 +648,7 @@ const TranslationForm = ({ user }) => {
         </div>
       )}
 
-      {/* ENHANCED: Translation Results - PROMINENT DISPLAY */}
+      {/* Translation Results - PROMINENT DISPLAY */}
       {translatedTexts.length > 0 && (
         <div className="translation-results-section">
           <div className="results-header">
